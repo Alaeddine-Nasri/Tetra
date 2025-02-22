@@ -69,7 +69,7 @@ watch(() => route.path, (p) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 2rem 5%;
+  padding: 1.6rem 5%;
   pointer-events: none;
 }
 
@@ -78,7 +78,7 @@ watch(() => route.path, (p) => {
   font-weight: 400;
   font-size: 0.82rem;
   letter-spacing: 0.06em;
-  color: rgba(245, 244, 242, 0.5);
+  color: rgba(245, 244, 242, 0.6);
   pointer-events: all;
   transition: color 0.25s ease;
   text-decoration: none;
