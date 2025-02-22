@@ -15,6 +15,7 @@ function fly(idx: number, path: string) {
   if (spaceNav.currentIndex === idx && !spaceNav.isFlying) return
   spaceNav.navigateTo(idx)
   setTimeout(() => router.push(path), 300)
+  //console.log('',idx,'path',path)
 }
 
 function onLogoClick(e: MouseEvent) {
@@ -36,6 +37,7 @@ watch(() => route.path, (p) => {
 </script>
 
 <template>
+  <!--Navbar componet-->
   <nav class="navbar">
     <a href="/" class="logo" data-nav-item @click="onLogoClick">
       {{ content.nav.logo }}
