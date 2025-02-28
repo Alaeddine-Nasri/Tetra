@@ -5,12 +5,12 @@
 :root {
   --bg-primary: #07080F;
   --bg-secondary: #090B15;
-  --accent: #4B3F8A;
-  --accent-light: #6B5FBA;
+  --accent: #4E3F8E;
+  --accent-light: #6E61BF;
   --accent-dim: #2E264F;
   --ink: #F5F4F2;
   --ink-muted: rgba(245, 244, 242, 0.45);
-  --ink-faint: rgba(245, 244, 242, 0.18);
+  
 }
 
 *, *::before, *::after {
@@ -24,7 +24,7 @@ html, body {
   /* Body itself never scrolls — the #scroll-container div handles it */
   overflow: hidden;
   background-color: var(--bg-primary);
-  color: var(--ink);
+  
   font-family: 'DM Sans', sans-serif;
   font-weight: 300;
   -webkit-font-smoothing: antialiased;
