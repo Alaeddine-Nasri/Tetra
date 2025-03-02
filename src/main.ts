@@ -6,5 +6,6 @@ import './style.css'
 
 const app = createApp(App)
 app.use(createPinia())
+// app.use(createMetaManager()) --- IGNORE ---
 app.use(router)
 app.mount('#app')
