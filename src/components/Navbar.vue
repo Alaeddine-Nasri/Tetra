@@ -108,11 +108,12 @@ watch(() => route.path, (p) => {
 .nav-link:hover  { color: rgba(245, 244, 242, 0.8); }
 .nav-link.active { color: var(--accent-light); }
 
+/* Language toggle button shares most styles with nav links, but has a different hover color and is a button element */
 .lang-btn {
   font-family: 'DM Sans', sans-serif;
   font-weight: 200;
   font-size: 0.72rem;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: rgba(245, 244, 242, 0.28);
   background: none;
