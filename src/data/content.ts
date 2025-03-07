@@ -47,11 +47,11 @@ export const content = {
     name: 'Ala-Nasri',
     title: {
       fr: 'Ala Eddine Nasri — Ingénieur Frontend',
-      en: 'Ala Eddine Nasri — Frontend Engineer'
+      en: 'Ala Eddine Nasri — Frontend Engineer & 3D Developer'
     },
     description: {
-      fr: 'Ingénieur Frontend · Vue · TypeScript · Three.js',
-      en: 'Frontend Engineer · Vue · TypeScript · Three.js'
+      fr: 'Ingénieur Frontend · Vue · TypeScript · Three.js · 3D Web',
+      en: 'Frontend Engineer · Vue · TypeScript · Three.js · 3D Web'
     }
   },
 
