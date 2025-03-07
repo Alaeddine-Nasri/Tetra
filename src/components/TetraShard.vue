@@ -51,7 +51,7 @@ onMounted(() => {
   fill2.position.set(10, -4, 5)
   scene.add(fill2)
 
-  scene.fog = new THREE.FogExp2(0x232330, 0.005)
+  scene.fog = new THREE.FogExp2(0x232330, 0.0048)
 
   // Cave rock texture — layered cracks on dark stone, drawn to a canvas so we avoid a texture file
   function makeCaveTexture(): THREE.Texture {

@@ -21,7 +21,7 @@ export const SECTIONS: SectionDef[] = [
     lookAt:      [  0,   0,   -2 ],
     platformPos: [  0,  -2,   -6 ],
     shardWorld:  [  0.0,  0.6,  -5   ],  babyWorld: [  3.2,  -0.2,  -4.5 ],
-    shardScale: 1.0, rotPeriod: 18,
+    shardScale: 1.0, rotPeriod: 20,
   },
   {
     key: 'work',    path: '/work',
