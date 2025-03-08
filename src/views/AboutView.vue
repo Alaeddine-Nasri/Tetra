@@ -335,6 +335,7 @@ onUnmounted(() => {
   font-size: 0.7rem;
   letter-spacing: 0.04em;
   color: rgba(245, 244, 242, 0.55);
+  cursor: none;
   border: 1px solid rgba(245, 244, 242, 0.1);
   border-radius: 999px;
   padding: 0.25rem 0.8rem;
@@ -352,6 +353,7 @@ onUnmounted(() => {
   font-size: 0.68rem;
   letter-spacing: 0.05em;
   color: rgba(107, 95, 186, 0.9);
+  cursor: none;
   border: 1px solid rgba(75, 63, 138, 0.4);
   border-radius: 999px;
   padding: 0.25rem 0.8rem;
