@@ -173,7 +173,7 @@ onUnmounted(() => {
   font-family: 'DM Sans', sans-serif;
   font-weight: 300;
   font-size: 0.85rem;
-  line-height: 1.8;
+  line-height: 1.75;
   color: rgba(245, 244, 242, 0.48);
   max-width: 360px;
 }
@@ -191,7 +191,7 @@ onUnmounted(() => {
 
 .stat-card {
   background: var(--bg-secondary);
-  padding: 1.2rem 1rem;
+  padding: 1.3rem 1.1rem;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -249,6 +249,7 @@ onUnmounted(() => {
   border-radius: 2px;
   padding: 0.7rem 1.4rem;
   align-self: flex-start;
+  cursor: none;
   transition: color 0.25s ease, border-color 0.25s ease, box-shadow 0.35s ease;
 }
 
