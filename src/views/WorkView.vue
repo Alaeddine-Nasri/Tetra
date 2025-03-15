@@ -177,7 +177,7 @@ onUnmounted(() => {
           <p class="card-company">{{ hoveredProject.company }}</p>
           <p class="card-desc">{{ t(hoveredProject.description) }}</p>
           <div class="card-tags">
-            <span v-for="tag in hoveredProject.tags" :key="tag" class="pill">{{ tag }}</span>
+            <span v-for="tag in hoveredProject.tags.slice(0, 3)" :key="tag" class="pill">{{ tag }}</span>
           </div>
         </div>
       </div>
@@ -280,9 +280,10 @@ onUnmounted(() => {
 
 .card-tags {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.25rem;
   margin-top: 0.3rem;
+  overflow: hidden;
 }
 
 .pill {
@@ -294,6 +295,11 @@ onUnmounted(() => {
   border: 1px solid rgba(245, 244, 242, 0.11);
   border-radius: 999px;
   padding: 0.14rem 0.46rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90px;
+  flex-shrink: 0;
 }
 
 /* ── vignette enter/leave transition ───────────────────────── */
