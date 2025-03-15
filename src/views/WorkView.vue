@@ -212,7 +212,7 @@ onUnmounted(() => {
 .work-title-text {
   font-family: 'Syne', sans-serif;
   font-weight: 700;
-  font-size: clamp(2.2rem, 4vw, 5rem);
+  font-size: clamp(2.4rem, 4vw, 5.2rem);
   color: var(--ink);
   letter-spacing: -0.01em;
   line-height: 1;
@@ -222,7 +222,7 @@ onUnmounted(() => {
 .work-title-counter {
   font-family: 'DM Sans', sans-serif;
   font-weight: 200;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   letter-spacing: 0.18em;
   color: rgba(245, 244, 242, 0.3);
   text-transform: uppercase;
