@@ -2,12 +2,15 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import gsap from 'gsap'
 import { useContent } from '@/composables/useContent'
+import { useLiquidText } from '@/composables/useLiquidText'
 
 const { content, t } = useContent()
 
-const rootEl     = ref<HTMLElement | null>(null)
-const emailRef   = ref<HTMLElement | null>(null)
-const socialsRef = ref<HTMLElement | null>(null)
+const rootEl      = ref<HTMLElement | null>(null)
+const emailRef    = ref<HTMLElement | null>(null)
+const socialsRef  = ref<HTMLElement | null>(null)
+const headlineRef = ref<HTMLElement | null>(null)
+const { blobStyle: headlineBlobStyle } = useLiquidText(headlineRef)
 
 // split the headline into words so gsap can stagger them one by one
 const words = computed(() => t(content.contact.headline).split(' '))
@@ -44,13 +47,16 @@ onUnmounted(() => {
     <div class="contact-inner">
 
       <!-- Cinematic headline — word by word -->
-      <h1 class="headline" :aria-label="t(content.contact.headline)">
-        <span
-          v-for="(word, i) in words"
-          :key="i"
-          class="contact-word"
-        >{{ word }}<template v-if="i < words.length - 1">&nbsp;</template></span>
-      </h1>
+      <div ref="headlineRef" class="liquid-wrap">
+        <h1 class="headline" :aria-label="t(content.contact.headline)">
+          <span
+            v-for="(word, i) in words"
+            :key="i"
+            class="contact-word"
+          >{{ word }}<template v-if="i < words.length - 1">&nbsp;</template></span>
+        </h1>
+        <div class="liquid-blob" :style="headlineBlobStyle" />
+      </div>
 
       <!-- Email -->
       <a
@@ -127,6 +133,21 @@ onUnmounted(() => {
   text-align: center;
   width: 90%;
   max-width: 820px;
+}
+
+/* ── liquid blob ────────────────────────────────────────── */
+.liquid-wrap { position: relative; display: inline-block; }
+.liquid-blob {
+  position: absolute;
+  width: 200px;
+  height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(107, 95, 186, 0.55) 0%, rgba(75, 63, 138, 0.2) 50%, transparent 70%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: blur(16px);
+  will-change: left, top, opacity;
 }
 
 /* ── headline ───────────────────────────────────────────── */

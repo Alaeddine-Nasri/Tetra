@@ -3,12 +3,15 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import gsap from 'gsap'
 import { useContent } from '@/composables/useContent'
 import { useLoaderStore } from '@/stores/loader'
+import { useLiquidText } from '@/composables/useLiquidText'
 
 const { content, t } = useContent()
 const loaderStore = useLoaderStore()
 
 const rootEl    = ref<HTMLElement | null>(null)
+const nameRef   = ref<HTMLElement | null>(null)
 const nameWords = computed(() => content.home.name.split(' '))
+const { blobStyle: nameBlobStyle } = useLiquidText(nameRef)
 
 let introTl: gsap.core.Timeline | null = null
 let unwatchLoader: (() => void) | null = null
@@ -78,15 +81,18 @@ onUnmounted(() => {
 
     <div class="landing-content">
       <div class="name-block">
-        <h1 class="landing-name" :aria-label="content.home.name">
-          <span
-            v-for="word in nameWords"
-            :key="word"
-            class="word-mask"
-          >
-            <span class="landing-word">{{ word }}</span>
-          </span>
-        </h1>
+        <div ref="nameRef" class="liquid-wrap">
+          <h1 class="landing-name" :aria-label="content.home.name">
+            <span
+              v-for="word in nameWords"
+              :key="word"
+              class="word-mask"
+            >
+              <span class="landing-word">{{ word }}</span>
+            </span>
+          </h1>
+          <div class="liquid-blob" :style="nameBlobStyle" />
+        </div>
 
         <p class="landing-role">{{ t(content.home.title) }}</p>
       </div>
@@ -158,5 +164,22 @@ onUnmounted(() => {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ink-muted);
+}
+
+.liquid-wrap {
+  position: relative;
+}
+
+.liquid-blob {
+  position: absolute;
+  width: 180px;
+  height: 100px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(107, 95, 186, 0.55) 0%, rgba(75, 63, 138, 0.25) 45%, transparent 70%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: blur(12px);
+  will-change: left, top, opacity;
 }
 </style>

@@ -5,9 +5,13 @@ import { useNavigationStore } from '@/stores/navigation'
 import { galleryBridge } from '@/utils/galleryBridge'
 import type { Project } from '@/data/content'
 import ProjectPanel from '@/components/ProjectPanel.vue'
+import { useLiquidText } from '@/composables/useLiquidText'
 
 const { content, t } = useContent()
 const navStore = useNavigationStore()
+
+const titleRef = ref<HTMLElement | null>(null)
+const { blobStyle: titleBlobStyle } = useLiquidText(titleRef)
 
 const N = content.work.projects.length
 let currentCardIdx = 0
@@ -160,9 +164,10 @@ onUnmounted(() => {
 
 <template>
   <main class="work-view" @wheel.prevent="onWheel" @mousedown="onMouseDown">
-    <div class="work-title" aria-hidden="true">
+    <div ref="titleRef" class="work-title liquid-wrap" aria-hidden="true">
       <span class="work-title-text">{{ t(content.work.heading) }}</span>
       <span class="work-title-counter">{{ counter }}</span>
+      <div class="liquid-blob" :style="titleBlobStyle" />
     </div>
 
     <!-- Vignette overlay — synced to hovered 3D card via screen projection -->
@@ -193,6 +198,21 @@ onUnmounted(() => {
   overflow: hidden;
   position: relative;
   cursor: none;
+}
+
+/* ── liquid blob ───────────────────────────────────────────── */
+.liquid-wrap { position: relative; }
+.liquid-blob {
+  position: absolute;
+  width: 160px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(107, 95, 186, 0.55) 0%, rgba(75, 63, 138, 0.2) 50%, transparent 70%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: blur(14px);
+  will-change: left, top, opacity;
 }
 
 /* ── section title ─────────────────────────────────────────── */

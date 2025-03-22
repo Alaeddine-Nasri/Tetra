@@ -3,13 +3,16 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import gsap from 'gsap'
 import { useContent } from '@/composables/useContent'
 import { useNavigationStore } from '@/stores/navigation'
+import { useLiquidText } from '@/composables/useLiquidText'
 
 const { content, t } = useContent()
 const navStore = useNavigationStore()
 
-const rootEl  = ref<HTMLElement | null>(null)
-const cvRef   = ref<HTMLElement | null>(null)
-const activeRow = ref<string | null>(null)
+const rootEl     = ref<HTMLElement | null>(null)
+const cvRef      = ref<HTMLElement | null>(null)
+const headingRef = ref<HTMLElement | null>(null)
+const activeRow  = ref<string | null>(null)
+const { blobStyle: headingBlobStyle } = useLiquidText(headingRef)
 
 function resolveItem(item: string | { fr: string; en: string }): string {
   return typeof item === 'string' ? item : t(item)
@@ -62,7 +65,10 @@ onUnmounted(() => {
 
     <!-- ── Left column ──────────────────────────────────── -->
     <div class="left-col">
-      <h1 class="about-heading">{{ t(content.about.heading) }}</h1>
+      <div ref="headingRef" class="liquid-wrap">
+        <h1 class="about-heading">{{ t(content.about.heading) }}</h1>
+        <div class="liquid-blob" :style="headingBlobStyle" />
+      </div>
       <p class="about-bio">{{ t(content.about.bio) }}</p>
 
       <!-- Stat cards -->
@@ -143,6 +149,21 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* ── liquid blob ─────────────────────────────────────────── */
+.liquid-wrap { position: relative; }
+.liquid-blob {
+  position: absolute;
+  width: 160px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(107, 95, 186, 0.55) 0%, rgba(75, 63, 138, 0.2) 50%, transparent 70%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  filter: blur(14px);
+  will-change: left, top, opacity;
+}
+
 /* ── layout ─────────────────────────────────────────────── */
 .about-view {
   height: 100vh;
