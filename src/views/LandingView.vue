@@ -172,14 +172,14 @@ onUnmounted(() => {
 
 .liquid-blob {
   position: absolute;
-  width: 180px;
+  width: 200px;
   height: 100px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(107, 95, 186, 0.55) 0%, rgba(75, 63, 138, 0.25) 45%, transparent 70%);
   mix-blend-mode: screen;
   pointer-events: none;
   transform: translate(-50%, -50%);
-  filter: blur(12px);
+  filter: blur(15px);
   will-change: left, top, opacity;
 }
 </style>

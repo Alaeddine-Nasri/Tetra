@@ -146,7 +146,7 @@ onUnmounted(() => {
   mix-blend-mode: screen;
   pointer-events: none;
   transform: translate(-50%, -50%);
-  filter: blur(16px);
+  filter: blur(18px);
   will-change: left, top, opacity;
 }
 
