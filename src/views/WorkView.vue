@@ -255,6 +255,7 @@ onUnmounted(() => {
   z-index: 5;
   display: flex;
   align-items: flex-end;
+  will-change: transform, opacity;
   /* gradient from bottom, matching old card vignette */
   background: linear-gradient(
     to top,
@@ -325,7 +326,7 @@ onUnmounted(() => {
 /* ── vignette enter/leave transition ───────────────────────── */
 .vignette-enter-active,
 .vignette-leave-active {
-  transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .vignette-enter-from,
 .vignette-leave-to {
