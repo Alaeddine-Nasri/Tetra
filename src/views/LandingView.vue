@@ -114,8 +114,8 @@ onUnmounted(() => {
   z-index: 1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 55% 40% at 20% 85%, rgba(75, 63, 138, 0.07) 0%, transparent 70%),
-    radial-gradient(ellipse 30% 25% at 75% 15%, rgba(75, 63, 138, 0.04) 0%, transparent 70%);
+    radial-gradient(ellipse 55% 40% at 20% 85%, rgba(75, 63, 138, 0.055) 0%, transparent 70%),
+    radial-gradient(ellipse 30% 25% at 75% 15%, rgba(75, 63, 138, 0.03) 0%, transparent 70%);
 }
 
 .landing-content {
@@ -161,7 +161,7 @@ onUnmounted(() => {
   font-family: 'DM Sans', sans-serif;
   font-weight: 200;
   font-size: 0.75rem;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--ink-muted);
 }
