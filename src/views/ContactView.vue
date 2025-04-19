@@ -154,7 +154,7 @@ onUnmounted(() => {
 .headline {
   font-family: 'Syne', sans-serif;
   font-weight: 700;
-  font-size: clamp(2.4rem, 5.5vw, 5.2rem);
+  font-size: clamp(2.6rem, 5.5vw, 5.4rem);
   line-height: 1.12;
   color: var(--ink);
   /* inline-flex so words wrap naturally */
@@ -193,7 +193,7 @@ onUnmounted(() => {
   height: 1px;
   background: var(--accent-light);
   box-shadow: 0 0 8px rgba(107, 95, 186, 0.7);
-  transition: right 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .email-link:hover {
