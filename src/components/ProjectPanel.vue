@@ -149,7 +149,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   position: fixed;
   inset: 0;
   z-index: 500;
-  background: rgba(5, 6, 12, 0.62);
+  background: rgba(4, 5, 10, 0.72);
   backdrop-filter: blur(3px);
   display: flex;
   align-items: stretch;
@@ -160,7 +160,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   position: relative;
   width: 44vw;
   height: 100%;
-  background: #090B15;
+  background: #060810;
   border-left: 1px solid rgba(245, 244, 242, 0.06);
   display: flex;
   flex-direction: column;
