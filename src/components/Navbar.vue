@@ -90,7 +90,7 @@ watch(() => route.path, (p) => {
 .nav-right {
   display: flex;
   align-items: center;
-  gap: 2.5rem;
+  gap: 2.2rem;
   pointer-events: all;
 }
 /* Nav links and language toggle share similar styles, so we can define them together */
