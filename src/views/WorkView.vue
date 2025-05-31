@@ -313,13 +313,13 @@ onUnmounted(() => {
   font-size: 0.52rem;
   letter-spacing: 0.06em;
   color: rgba(245, 244, 242, 0.50);
-  border: 1px solid rgba(245, 244, 242, 0.11);
+  border: 1px solid rgba(245, 244, 242, 0.09);
   border-radius: 999px;
   padding: 0.14rem 0.46rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 90px;
+  max-width: 85px;
   flex-shrink: 0;
 }
 
