@@ -85,8 +85,8 @@ export const content = {
     heading: { fr: 'À propos.', en: 'About Me.' },
 
     bio: {
-      fr: 'Je conçois des interfaces pensées pour durer — architectures claires, animations intentionnelles, code qui fait sens.',
-      en: 'I craft interfaces built to last — clear architectures, intentional animations, code that makes sense.'
+      fr: 'Je conçois des interfaces pensées pour durer — architectures claires, animations intentionnelles, code qui fait sens. Three.js et la 3D web sont ma passion depuis que j\'ai réalisé ce qu\'on pouvait faire dans un navigateur.',
+      en: 'I craft interfaces built to last — clear architectures, intentional animations, code that makes sense. Three.js and 3D web are what I keep coming back to; there\'s something about making a browser feel spatial.'
     },
 
     stats: [
@@ -95,7 +95,7 @@ export const content = {
         value: '3+',
         unit: { fr: 'ans', en: 'years' },
         label: { fr: 'Expérience', en: 'Experience' },
-        detail: { fr: 'Projets industriels & académiques', en: 'Industrial & academic projects' }
+        detail: { fr: 'Projets industriels, startups & académique', en: 'Industry, startups & academic work' }
       },
       {
         key: 'projects',
