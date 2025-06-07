@@ -226,7 +226,7 @@ onUnmounted(() => {
 .stat-value {
   font-family: 'Syne', sans-serif;
   font-weight: 700;
-  font-size: 1.9rem;
+  font-size: 2rem;
   color: var(--ink);
   line-height: 1;
 }
