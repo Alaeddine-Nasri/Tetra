@@ -66,7 +66,9 @@ out.x = mt*mt*p0.x + 2*mt*t*p1.x + t*t*p2.x
 
 ### Projects Gallery
 
-In the Work section the card track is entirely in 3D. Each project gets a `PlaneGeometry` loaded with its cover image via `TextureLoader`. A `Raycaster` handles hover detection every frame and click-to-open. A second canvas overlay (HTML `<div>`) is projected from 3D world coords to screen space and positioned exactly over the hovered plane — title, company, description, tags.
+In the Work section the card track is entirely in 3D. Each project gets a `PlaneGeometry` loaded with its cover image via `TextureLoader`. A `Raycaster` handles hover detection every frame and click-to-open. A second canvas overlay (HTML `<div>`) is projected from 3D world coords to screen space and positioned exactly over the hovered plane — title, company, description, and the first 3 tags in a single non-wrapping row (longer tags get ellipsis so the overlay stays compact).
+
+Each section heading (name, Work, About Me, Contact) reacts to the cursor with a liquid blob effect — a purple radial gradient that follows the mouse with a 0.07 lerp factor, giving it a slow heavy-fluid feel. Uses `mix-blend-mode: screen` so it only adds glow, never covers the text.
 
 ### Scroll System
 
