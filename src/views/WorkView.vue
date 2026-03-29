@@ -12,7 +12,7 @@ const wrapRef    = ref<HTMLElement | null>(null)
 // detail overlay
 const activeProject = ref<Project | null>(null)
 const detailRef      = ref<HTMLElement | null>(null)
-const cardOrigin     = ref<DOMRect | null>(null)
+const panelRef       = ref<HTMLElement | null>(null)
 
 let currentX     = 0
 let targetX      = 0
@@ -70,29 +70,35 @@ function onMouseUp() {
 function openProject(project: Project, evt: MouseEvent) {
   if (Math.abs(targetX - dragStartScroll) > 6) return   // was a drag, not a click
 
-  const card = (evt.currentTarget as HTMLElement)
-  cardOrigin.value = card.getBoundingClientRect()
   activeProject.value = project
 
-  // animate in after next tick (DOM needs to render)
+  // animate after next tick so DOM renders first
   requestAnimationFrame(() => {
-    if (!detailRef.value) return
+    if (!detailRef.value || !panelRef.value) return
+
+    // backdrop fades in
     gsap.fromTo(detailRef.value,
-      { opacity: 0, scale: 0.96 },
-      { opacity: 1, scale: 1, duration: 0.55, ease: 'power3.out' }
+      { opacity: 0 },
+      { opacity: 1, duration: 0.35, ease: 'power2.out' }
+    )
+    // panel slides in from right
+    gsap.fromTo(panelRef.value,
+      { x: '100%' },
+      { x: '0%', duration: 0.55, ease: 'power3.out' }
     )
   })
 }
 
 function closeProject() {
-  if (!detailRef.value) return
-  gsap.to(detailRef.value, {
-    opacity: 0,
-    scale: 0.97,
-    duration: 0.35,
-    ease: 'power2.in',
+  if (!detailRef.value || !panelRef.value) return
+
+  const tl = gsap.timeline({
     onComplete: () => { activeProject.value = null }
   })
+
+  // panel slides out right, then backdrop fades
+  tl.to(panelRef.value, { x: '100%', duration: 0.4, ease: 'power2.in' })
+    .to(detailRef.value, { opacity: 0, duration: 0.2, ease: 'power1.in' }, '-=0.1')
 }
 
 // keyboard close
@@ -203,7 +209,7 @@ onUnmounted(() => {
       class="detail-overlay"
       @click.self="closeProject"
     >
-      <div class="detail-panel">
+      <div ref="panelRef" class="detail-panel">
         <!-- dimmed background image -->
         <img
           class="detail-bg"
@@ -215,7 +221,7 @@ onUnmounted(() => {
         <div class="detail-scrim" />
 
         <!-- close -->
-        <button class="detail-close" @click="closeProject" aria-label="Close">
+        <button class="detail-close" @click.stop="closeProject" aria-label="Close">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M3 3l14 14M17 3L3 17" stroke="currentColor" stroke-width="1.2"/>
           </svg>

@@ -1,21 +1,7 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import gsap from 'gsap'
 import { useContent } from '@/composables/useContent'
-import { useIntroStore } from '@/stores/intro'
 
 const { content, lang } = useContent()
-const route = useRoute()
-const introStore = useIntroStore()
-
-onMounted(() => {
-  // On the first ever landing page load, start nav invisible.
-  // LandingView's timeline will animate [data-nav-item] into view.
-  if (route.path === '/' && !introStore.played) {
-    gsap.set('[data-nav-item]', { opacity: 0, y: -8 })
-  }
-})
 </script>
 
 <template>

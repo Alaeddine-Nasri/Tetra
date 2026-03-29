@@ -1,5 +1,6 @@
 type Bilingual = { fr: string; en: string }
 type RowType = 'tags' | 'pills'
+export type { Bilingual }
 
 interface NavLink {
   key: string
@@ -22,6 +23,7 @@ export interface Project {
 export interface AboutRow {
   key: string
   label: Bilingual
+  detail?: Bilingual
   type: RowType
   items: (string | Bilingual)[]
 }
@@ -78,22 +80,42 @@ export const content = {
       en: 'I craft interfaces built to last — clear architectures, intentional animations, code that makes sense.'
     },
 
+    stats: [
+      {
+        key: 'experience',
+        value: '3+',
+        unit: { fr: 'ans', en: 'years' },
+        label: { fr: 'Expérience', en: 'Experience' },
+        detail: { fr: 'Projets industriels & académiques', en: 'Industrial & academic projects' }
+      },
+      {
+        key: 'projects',
+        value: '12+',
+        unit: { fr: '', en: '' },
+        label: { fr: 'Projets', en: 'Projects' },
+        detail: { fr: 'Livrés en production', en: 'Shipped to production' }
+      },
+      {
+        key: 'awards',
+        value: '1ᵉʳ',
+        unit: { fr: 'Prix', en: 'Prize' },
+        label: { fr: 'DevFest Hackathon', en: 'DevFest Hackathon' },
+        detail: { fr: 'Compétition nationale', en: 'National competition' }
+      }
+    ],
+
     rows: [
       {
         key: 'engineering',
         label: { fr: 'Ingénierie',    en: 'Engineering'  },
+        detail: { fr: 'Architectures logicielles, algorithmes et systèmes embarqués.', en: 'Software architectures, algorithms and embedded systems.' },
         type: 'tags',
-        items: ['Architectures', 'Algorithmics', 'Systems']
-      },
-      {
-        key: 'experience',
-        label: { fr: '· Expérience',  en: '· Experience' },
-        type: 'tags',
-        items: [{ fr: '3+ ans', en: '3+ years' }]
+        items: ['Architectures', 'Algorithmics', 'Systems', 'Embedded']
       },
       {
         key: 'education',
         label: { fr: 'Formation',     en: 'Education'    },
+        detail: { fr: 'Diplômes obtenus en France, spécialisation IoT & Logiciel.', en: 'Degrees obtained in France, IoT & Software specialisation.' },
         type: 'tags',
         items: [
           { fr: 'Master IoT',         en: 'Master IoT'         },
@@ -101,20 +123,16 @@ export const content = {
         ]
       },
       {
-        key: 'awards',
-        label: { fr: 'Récompenses',   en: 'Awards'       },
-        type: 'tags',
-        items: [{ fr: 'DevFest Hackathon — 1ᵉʳ Prix', en: 'DevFest Hackathon — 1st Prize' }]
-      },
-      {
         key: 'skills',
         label: { fr: 'Compétences',   en: 'Skills'       },
+        detail: { fr: 'Stack actuelle et outils du quotidien.', en: 'Current stack and daily tools.' },
         type: 'pills',
         items: ['Vue 3', 'TypeScript', 'Three.js', 'GSAP', 'Node.js', 'Python', 'REST API', 'Git', 'Docker', 'IoT']
       },
       {
         key: 'languages',
         label: { fr: 'Langues',       en: 'Languages'    },
+        detail: { fr: 'Trois langues, trois cultures.', en: 'Three languages, three cultures.' },
         type: 'tags',
         items: [
           { fr: 'Français — natif',  en: 'French — native'  },
@@ -203,7 +221,7 @@ export const content = {
 
   contact: {
     headline: {
-      fr: "Construisons quelque chose qui mérite d'être vu.",
+      fr: "Chaque grand projet commence par une conversation.",
       en: "Let's build something worth looking at."
     },
     email: 'hi@ala-nasri.dev',

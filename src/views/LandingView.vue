@@ -11,9 +11,18 @@ const introStore = useIntroStore()
 const nameWords = computed(() => content.home.name.split(' '))
 
 onMounted(() => {
+  // If intro was already played (persisted in localStorage), just show everything immediately
+  if (introStore.played) {
+    gsap.set('[data-nav-item]', { opacity: 1, y: 0 })
+    gsap.set(['.landing-word', '.landing-role'], { opacity: 1, y: 0 })
+    return
+  }
+
+  // First ever visit — hide nav, then orchestrate the full reveal
+  gsap.set('[data-nav-item]', { opacity: 0, y: -8 })
+
   const tl = gsap.timeline({ delay: 0.5 })
 
-  // Words rise from behind their overflow-hidden mask, one by one
   tl.from('.landing-word', {
     y: '108%',
     duration: 1.35,
@@ -21,7 +30,6 @@ onMounted(() => {
     stagger: 0.18
   })
 
-  // Title line fades in just as last word lands
   .from('.landing-role', {
     opacity: 0,
     y: 12,
@@ -29,7 +37,6 @@ onMounted(() => {
     ease: 'power2.out'
   }, '-=0.6')
 
-  // Nav items cascade in from top — targets the data attribute set by Navbar
   .to('[data-nav-item]', {
     opacity: 1,
     y: 0,
@@ -46,13 +53,10 @@ onMounted(() => {
   <div class="landing">
     <ThreeCanvas />
 
-    <!-- Barely perceptible atmospheric glow, bottom-left where the name lives -->
     <div class="ambient-glow" />
 
     <div class="landing-content">
       <div class="name-block">
-
-        <!-- Name: each word has an overflow-hidden mask so the rise-up is clipped -->
         <h1 class="landing-name" :aria-label="content.home.name">
           <span
             v-for="word in nameWords"
@@ -77,7 +81,6 @@ onMounted(() => {
   cursor: none;
 }
 
-/* A very faint purple presence — just enough to feel intentional */
 .ambient-glow {
   position: absolute;
   inset: 0;
@@ -88,7 +91,6 @@ onMounted(() => {
     radial-gradient(ellipse 30% 25% at 75% 15%, rgba(75, 63, 138, 0.04) 0%, transparent 70%);
 }
 
-/* Content sits above the canvas, bottom-left anchored */
 .landing-content {
   position: absolute;
   inset: 0;
@@ -104,7 +106,6 @@ onMounted(() => {
   gap: 1.1rem;
 }
 
-/* The name itself — large, Syne heavy */
 .landing-name {
   font-family: 'Syne', sans-serif;
   font-weight: 800;
@@ -117,17 +118,11 @@ onMounted(() => {
   row-gap: 0;
 }
 
-/*
-  The mask clips anything below its bottom edge.
-  GSAP starts the .landing-word at y:108% (below the clip)
-  and eases it up to y:0 (fully visible).
-*/
 .word-mask {
   display: inline-block;
   overflow: hidden;
   line-height: 1.08;
   vertical-align: top;
-  /* tiny padding so descenders aren't clipped */
   padding-bottom: 0.04em;
 }
 

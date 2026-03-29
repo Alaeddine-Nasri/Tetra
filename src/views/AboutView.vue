@@ -5,59 +5,50 @@ import { useContent } from '@/composables/useContent'
 
 const { content, t } = useContent()
 
+const cvRef = ref<HTMLElement | null>(null)
+const activeRow = ref<string | null>(null)
+
 function resolveItem(item: string | { fr: string; en: string }): string {
   return typeof item === 'string' ? item : t(item)
 }
 
-const headingRef = ref<HTMLElement | null>(null)
-const dividerRef = ref<HTMLElement | null>(null)
-const cvRef      = ref<HTMLElement | null>(null)
+function toggleRow(key: string) {
+  activeRow.value = activeRow.value === key ? null : key
+}
 
 onMounted(() => {
   const tl = gsap.timeline()
 
-  // heading rises up
-  tl.from(headingRef.value, {
-    opacity: 0, y: 24,
-    duration: 0.7, ease: 'power3.out'
+  tl.from('.about-heading', {
+    opacity: 0, y: 28,
+    duration: 0.75, ease: 'power3.out'
   })
 
-  // divider draws left → right
-  .from(dividerRef.value, {
-    scaleX: 0,
-    duration: 0.65, ease: 'power2.out', transformOrigin: 'left center'
+  .from('.about-bio', {
+    opacity: 0, y: 12,
+    duration: 0.55, ease: 'power2.out'
   }, '-=0.3')
 
-  // bio fades
-  .from('.about-bio', {
-    opacity: 0, y: 10,
-    duration: 0.5, ease: 'power2.out'
+  .from('.stat-card', {
+    opacity: 0, y: 20,
+    duration: 0.55, ease: 'power2.out',
+    stagger: 0.1
   }, '-=0.2')
 
-  // rows assemble one by one
-  .from('.about-row', {
-    opacity: 0, y: 16,
-    duration: 0.5, ease: 'power2.out',
-    stagger: 0.14
+  .from('.info-row', {
+    opacity: 0, x: -12,
+    duration: 0.45, ease: 'power2.out',
+    stagger: 0.1
   }, '-=0.2')
 
-  // after rows land, skill pills pop in individually
-  .from('.skill-pill', {
-    opacity: 0, y: 6, scale: 0.9,
-    duration: 0.3, ease: 'power2.out',
-    stagger: 0.055
-  }, '-=0.35')
-
-  // CV button pulses in last
   .fromTo(cvRef.value,
     { opacity: 0, y: 8 },
     {
       opacity: 1, y: 0,
-      duration: 0.55, ease: 'power2.out',
+      duration: 0.5, ease: 'power2.out',
       onComplete: () => {
-        // subtle purple glow pulse, runs once
         gsap.to(cvRef.value, {
-          boxShadow: '0 0 18px rgba(75, 63, 138, 0.45)',
+          boxShadow: '0 0 20px rgba(75, 63, 138, 0.5)',
           duration: 0.7, ease: 'power2.out',
           yoyo: true, repeat: 1
         })
@@ -70,13 +61,25 @@ onMounted(() => {
 <template>
   <main class="about-view">
 
-    <!-- Left column: heading + bio + CV -->
+    <!-- ── Left column ──────────────────────────────────── -->
     <div class="left-col">
-      <div ref="headingRef" class="heading-wrap">
-        <h1 class="heading">{{ t(content.about.heading) }}</h1>
-      </div>
-
+      <h1 class="about-heading">{{ t(content.about.heading) }}</h1>
       <p class="about-bio">{{ t(content.about.bio) }}</p>
+
+      <!-- Stat cards -->
+      <div class="stats">
+        <div
+          v-for="stat in content.about.stats"
+          :key="stat.key"
+          class="stat-card"
+        >
+          <div class="stat-value">
+            {{ stat.value }}<span class="stat-unit">{{ t(stat.unit) }}</span>
+          </div>
+          <div class="stat-label">{{ t(stat.label) }}</div>
+          <div class="stat-detail">{{ t(stat.detail) }}</div>
+        </div>
+      </div>
 
       <a
         ref="cvRef"
@@ -92,39 +95,48 @@ onMounted(() => {
       </a>
     </div>
 
-    <!-- Full-width divider after heading -->
-    <div ref="dividerRef" class="divider" />
-
-    <!-- Right column: rows -->
+    <!-- ── Right column: expandable info rows ──────────── -->
     <div class="right-col">
       <div
         v-for="row in content.about.rows"
         :key="row.key"
-        class="about-row"
+        class="info-row"
+        :class="{ 'is-open': activeRow === row.key }"
+        @click="toggleRow(row.key)"
       >
-        <span class="row-label">{{ t(row.label) }}</span>
-
-        <!-- skill pills get individual stagger -->
-        <div v-if="row.type === 'pills'" class="row-pills">
-          <span
-            v-for="item in row.items"
-            :key="typeof item === 'string' ? item : item.fr"
-            class="skill-pill"
-          >
-            {{ resolveItem(item) }}
+        <!-- Row header -->
+        <div class="row-header">
+          <span class="row-label">{{ t(row.label) }}</span>
+          <span class="row-detail-text" v-if="row.detail">{{ t(row.detail) }}</span>
+          <span class="row-toggle">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path
+                :d="activeRow === row.key ? 'M2 6h8' : 'M6 2v8M2 6h8'"
+                stroke="currentColor" stroke-width="1" stroke-linecap="round"
+              />
+            </svg>
           </span>
         </div>
 
-        <!-- regular tags -->
-        <div v-else class="row-tags">
-          <span
-            v-for="item in row.items"
-            :key="typeof item === 'string' ? item : item.fr"
-            class="tag"
-          >
-            {{ resolveItem(item) }}
-          </span>
-        </div>
+        <!-- Expandable items -->
+        <Transition name="expand">
+          <div v-if="activeRow === row.key" class="row-body">
+            <div v-if="row.type === 'pills'" class="row-pills">
+              <span
+                v-for="item in row.items"
+                :key="resolveItem(item)"
+                class="skill-pill"
+              >{{ resolveItem(item) }}</span>
+            </div>
+            <div v-else class="row-tags">
+              <span
+                v-for="item in row.items"
+                :key="resolveItem(item)"
+                class="tag"
+              >{{ resolveItem(item) }}</span>
+            </div>
+          </div>
+        </Transition>
       </div>
     </div>
 
@@ -136,39 +148,24 @@ onMounted(() => {
 .about-view {
   height: 100vh;
   display: grid;
-  /*
-    Left col: heading + bio + CV (40% width)
-    Right col: rows (55% width), offset by the divider
-  */
-  grid-template-columns: 40% 1fr;
-  grid-template-rows: auto 1px 1fr;
-  grid-template-areas:
-    "left  left"
-    "div   div"
-    ".     right";
-  align-items: start;
+  grid-template-columns: 42% 1fr;
+  gap: 0 4%;
+  align-items: center;
   padding: 0 5%;
-  padding-top: 18vh;
 }
 
-/* ── left col ────────────────────────────────────────────── */
+/* ── left column ─────────────────────────────────────────── */
 .left-col {
-  grid-area: left;
   display: flex;
   flex-direction: column;
-  gap: 1.8rem;
-  padding-right: 6%;
-  padding-bottom: 2.5rem;
+  gap: 2rem;
+  padding-right: 2rem;
 }
 
-.heading-wrap {
-  overflow: hidden;
-}
-
-.heading {
+.about-heading {
   font-family: 'Syne', sans-serif;
   font-weight: 700;
-  font-size: clamp(2.8rem, 5vw, 5rem);
+  font-size: clamp(2.8rem, 4.5vw, 4.8rem);
   color: var(--ink);
   line-height: 1;
 }
@@ -177,11 +174,68 @@ onMounted(() => {
   font-family: 'DM Sans', sans-serif;
   font-weight: 300;
   font-size: 0.85rem;
-  line-height: 1.75;
-  color: rgba(245, 244, 242, 0.5);
-  max-width: 340px;
+  line-height: 1.8;
+  color: rgba(245, 244, 242, 0.48);
+  max-width: 360px;
 }
 
+/* ── stat cards ──────────────────────────────────────────── */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--ink-faint);
+  border: 1px solid var(--ink-faint);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.stat-card {
+  background: var(--bg-secondary);
+  padding: 1.2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  transition: background 0.25s ease;
+}
+
+.stat-card:hover {
+  background: rgba(75, 63, 138, 0.08);
+}
+
+.stat-value {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 1.9rem;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.stat-unit {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--accent-light);
+  margin-left: 0.15em;
+}
+
+.stat-label {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.stat-detail {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 200;
+  font-size: 0.65rem;
+  color: rgba(245, 244, 242, 0.28);
+  line-height: 1.4;
+}
+
+/* ── CV button ───────────────────────────────────────────── */
 .cv-btn {
   display: inline-flex;
   align-items: center;
@@ -196,8 +250,8 @@ onMounted(() => {
   border-radius: 2px;
   padding: 0.7rem 1.4rem;
   align-self: flex-start;
+  opacity: 0;
   transition: color 0.25s ease, border-color 0.25s ease, box-shadow 0.35s ease;
-  opacity: 0;   /* GSAP animates this in */
 }
 
 .cv-btn:hover {
@@ -206,58 +260,74 @@ onMounted(() => {
   box-shadow: 0 0 16px rgba(75, 63, 138, 0.3);
 }
 
-/* ── full-width divider ──────────────────────────────────── */
-.divider {
-  grid-area: div;
-  background: var(--ink-faint);
-  width: 100%;
-  margin: 0 -5%;
-  width: calc(100% + 10%);
-  height: 1px;
-}
-
-/* ── right col ───────────────────────────────────────────── */
+/* ── right column ────────────────────────────────────────── */
 .right-col {
-  grid-area: right;
   display: flex;
   flex-direction: column;
-  padding-top: 2rem;
-  padding-bottom: 2rem;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-/* ── rows ────────────────────────────────────────────────── */
-.about-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 2rem;
-  padding: 1.1rem 0;
-  border-bottom: 1px solid var(--ink-faint);
-}
-
-.about-row:first-child {
   border-top: 1px solid var(--ink-faint);
+}
+
+/* ── info rows (accordion) ───────────────────────────────── */
+.info-row {
+  border-bottom: 1px solid var(--ink-faint);
+  cursor: none;
+  user-select: none;
+}
+
+.row-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.15rem 0;
+  transition: opacity 0.2s ease;
+}
+
+.info-row:hover .row-header {
+  opacity: 0.8;
 }
 
 .row-label {
   font-family: 'Syne', sans-serif;
   font-weight: 600;
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--accent-light);
-  min-width: 120px;
-  padding-top: 0.15rem;
+  color: var(--ink);
+  min-width: 130px;
 }
 
-/* ── regular tags ────────────────────────────────────────── */
+.is-open .row-label {
+  color: var(--accent-light);
+}
+
+.row-detail-text {
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 200;
+  font-size: 0.75rem;
+  color: rgba(245, 244, 242, 0.32);
+  flex: 1;
+}
+
+.row-toggle {
+  color: rgba(245, 244, 242, 0.25);
+  margin-left: auto;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+.is-open .row-toggle {
+  color: var(--accent-light);
+}
+
+/* ── expandable body ─────────────────────────────────────── */
+.row-body {
+  padding-bottom: 1.2rem;
+}
+
 .row-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  justify-content: flex-end;
 }
 
 .tag {
@@ -268,15 +338,13 @@ onMounted(() => {
   color: rgba(245, 244, 242, 0.55);
   border: 1px solid rgba(245, 244, 242, 0.1);
   border-radius: 999px;
-  padding: 0.22rem 0.75rem;
+  padding: 0.25rem 0.8rem;
 }
 
-/* ── skill pills ─────────────────────────────────────────── */
 .row-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
-  justify-content: flex-end;
 }
 
 .skill-pill {
@@ -284,10 +352,29 @@ onMounted(() => {
   font-weight: 300;
   font-size: 0.68rem;
   letter-spacing: 0.05em;
-  color: rgba(107, 95, 186, 0.85);
-  border: 1px solid rgba(75, 63, 138, 0.38);
+  color: rgba(107, 95, 186, 0.9);
+  border: 1px solid rgba(75, 63, 138, 0.4);
   border-radius: 999px;
-  padding: 0.22rem 0.75rem;
-  background: rgba(75, 63, 138, 0.06);
+  padding: 0.25rem 0.8rem;
+  background: rgba(75, 63, 138, 0.07);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.skill-pill:hover {
+  background: rgba(75, 63, 138, 0.18);
+  color: var(--accent-light);
+}
+
+/* ── accordion transition ────────────────────────────────── */
+.expand-enter-active,
+.expand-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  transform-origin: top;
+}
+
+.expand-enter-from,
+.expand-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 </style>
