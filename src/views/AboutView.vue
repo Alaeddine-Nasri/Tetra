@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import gsap from 'gsap'
 import { useContent } from '@/composables/useContent'
+import { useNavigationStore } from '@/stores/navigation'
 
 const { content, t } = useContent()
+const navStore = useNavigationStore()
 
-const cvRef = ref<HTMLElement | null>(null)
+const rootEl  = ref<HTMLElement | null>(null)
+const cvRef   = ref<HTMLElement | null>(null)
 const activeRow = ref<string | null>(null)
 
 function resolveItem(item: string | { fr: string; en: string }): string {
@@ -14,52 +17,46 @@ function resolveItem(item: string | { fr: string; en: string }): string {
 
 function toggleRow(key: string) {
   activeRow.value = activeRow.value === key ? null : key
+  navStore.setActiveAboutRow(activeRow.value)
 }
 
 onMounted(() => {
-  const tl = gsap.timeline()
+  if (!rootEl.value) return
+  const scope = rootEl.value
 
-  tl.from('.about-heading', {
-    opacity: 0, y: 28,
-    duration: 0.75, ease: 'power3.out'
+  const tl = gsap.timeline({ delay: 0.55 })
+
+  tl.from(scope.querySelector('.about-heading'), {
+    y: 28, duration: 0.75, ease: 'power3.out'
   })
-
-  .from('.about-bio', {
-    opacity: 0, y: 12,
-    duration: 0.55, ease: 'power2.out'
+  .from(scope.querySelector('.about-bio'), {
+    y: 12, duration: 0.55, ease: 'power2.out'
   }, '-=0.3')
-
-  .from('.stat-card', {
-    opacity: 0, y: 20,
-    duration: 0.55, ease: 'power2.out',
-    stagger: 0.1
+  .from(scope.querySelectorAll('.stat-card'), {
+    y: 20, duration: 0.55, ease: 'power2.out', stagger: 0.1
   }, '-=0.2')
-
-  .from('.info-row', {
-    opacity: 0, x: -12,
-    duration: 0.45, ease: 'power2.out',
-    stagger: 0.1
+  .from(scope.querySelectorAll('.info-row'), {
+    x: -12, duration: 0.45, ease: 'power2.out', stagger: 0.1
   }, '-=0.2')
+  .from(cvRef.value, {
+    y: 8, duration: 0.5, ease: 'power2.out',
+    onComplete: () => {
+      gsap.to(cvRef.value, {
+        boxShadow: '0 0 20px rgba(75, 63, 138, 0.5)',
+        duration: 0.7, ease: 'power2.out',
+        yoyo: true, repeat: 1
+      })
+    }
+  }, '-=0.1')
+})
 
-  .fromTo(cvRef.value,
-    { opacity: 0, y: 8 },
-    {
-      opacity: 1, y: 0,
-      duration: 0.5, ease: 'power2.out',
-      onComplete: () => {
-        gsap.to(cvRef.value, {
-          boxShadow: '0 0 20px rgba(75, 63, 138, 0.5)',
-          duration: 0.7, ease: 'power2.out',
-          yoyo: true, repeat: 1
-        })
-      }
-    }, '-=0.1'
-  )
+onUnmounted(() => {
+  if (rootEl.value) gsap.killTweensOf(rootEl.value.querySelectorAll('*'))
 })
 </script>
 
 <template>
-  <main class="about-view">
+  <main ref="rootEl" class="about-view">
 
     <!-- ── Left column ──────────────────────────────────── -->
     <div class="left-col">
@@ -250,7 +247,6 @@ onMounted(() => {
   border-radius: 2px;
   padding: 0.7rem 1.4rem;
   align-self: flex-start;
-  opacity: 0;
   transition: color 0.25s ease, border-color 0.25s ease, box-shadow 0.35s ease;
 }
 

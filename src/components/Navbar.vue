@@ -53,9 +53,7 @@ const { content, lang } = useContent()
   transition: color 0.25s ease;
 }
 
-.logo:hover {
-  color: var(--ink);
-}
+.logo:hover { color: var(--ink); }
 
 .nav-right {
   display: flex;
@@ -74,13 +72,8 @@ const { content, lang } = useContent()
   transition: color 0.25s ease;
 }
 
-.nav-link:hover {
-  color: rgba(245, 244, 242, 0.8);
-}
-
-.nav-link.active {
-  color: var(--accent-light);
-}
+.nav-link:hover  { color: rgba(245, 244, 242, 0.8); }
+.nav-link.active { color: var(--accent-light); }
 
 .lang-btn {
   font-family: 'DM Sans', sans-serif;
@@ -96,7 +89,5 @@ const { content, lang } = useContent()
   transition: color 0.25s ease;
 }
 
-.lang-btn:hover {
-  color: rgba(245, 244, 242, 0.6);
-}
+.lang-btn:hover { color: rgba(245, 244, 242, 0.6); }
 </style>

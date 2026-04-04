@@ -21,6 +21,7 @@
 
 html, body {
   height: 100%;
+  /* Body itself never scrolls — the #scroll-container div handles it */
   overflow: hidden;
   background-color: var(--bg-primary);
   color: var(--ink);

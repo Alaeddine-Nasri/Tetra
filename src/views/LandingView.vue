@@ -1,58 +1,57 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import gsap from 'gsap'
-import ThreeCanvas from '@/components/ThreeCanvas.vue'
 import { useContent } from '@/composables/useContent'
-import { useIntroStore } from '@/stores/intro'
 
 const { content, t } = useContent()
-const introStore = useIntroStore()
 
+const rootEl    = ref<HTMLElement | null>(null)
 const nameWords = computed(() => content.home.name.split(' '))
 
-onMounted(() => {
-  // If intro was already played (persisted in localStorage), just show everything immediately
-  if (introStore.played) {
-    gsap.set('[data-nav-item]', { opacity: 1, y: 0 })
-    gsap.set(['.landing-word', '.landing-role'], { opacity: 1, y: 0 })
-    return
-  }
+let introTl: gsap.core.Timeline | null = null
 
-  // First ever visit — hide nav, then orchestrate the full reveal
+onMounted(() => {
+  if (!rootEl.value) return
+  const scope = rootEl.value
+
+  // Always animate — every visit to landing replays the name reveal
   gsap.set('[data-nav-item]', { opacity: 0, y: -8 })
 
-  const tl = gsap.timeline({ delay: 0.5 })
+  introTl = gsap.timeline({ delay: 0.3 })
 
-  tl.from('.landing-word', {
-    y: '108%',
-    duration: 1.35,
-    ease: 'power4.out',
-    stagger: 0.18
-  })
+  introTl
+    .from(scope.querySelectorAll('.landing-word'), {
+      y: '108%',
+      duration: 1.35,
+      ease: 'power4.out',
+      stagger: 0.18,
+    })
+    .from(scope.querySelector('.landing-role'), {
+      y: 12,
+      duration: 0.75,
+      ease: 'power2.out',
+    }, '-=0.6')
+    .to('[data-nav-item]', {
+      opacity: 1,
+      y: 0,
+      duration: 0.55,
+      ease: 'power2.out',
+      stagger: 0.1,
+    }, '-=0.3')
+})
 
-  .from('.landing-role', {
-    opacity: 0,
-    y: 12,
-    duration: 0.75,
-    ease: 'power2.out'
-  }, '-=0.6')
-
-  .to('[data-nav-item]', {
-    opacity: 1,
-    y: 0,
-    duration: 0.55,
-    ease: 'power2.out',
-    stagger: 0.1
-  }, '-=0.3')
-
-  tl.eventCallback('onComplete', () => introStore.markPlayed())
+onUnmounted(() => {
+  if (introTl) {
+    introTl.kill()
+    introTl = null
+  }
+  // Always restore nav items to fully visible — they must show on all other pages
+  gsap.set('[data-nav-item]', { opacity: 1, y: 0 })
 })
 </script>
 
 <template>
-  <div class="landing">
-    <ThreeCanvas />
-
+  <div ref="rootEl" class="landing">
     <div class="ambient-glow" />
 
     <div class="landing-content">

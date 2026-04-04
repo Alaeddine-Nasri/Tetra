@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import gsap from 'gsap'
 import { useContent } from '@/composables/useContent'
 
 const { content, t } = useContent()
 
+const rootEl     = ref<HTMLElement | null>(null)
 const emailRef   = ref<HTMLElement | null>(null)
 const socialsRef = ref<HTMLElement | null>(null)
 
@@ -12,38 +13,29 @@ const socialsRef = ref<HTMLElement | null>(null)
 const words = computed(() => t(content.contact.headline).split(' '))
 
 onMounted(() => {
-  const tl = gsap.timeline()
+  if (!rootEl.value) return
+  const scope = rootEl.value
 
-  // Words rise and fade in one by one
-  tl.from('.contact-word', {
-    opacity: 0,
-    y: 14,
-    duration: 0.65,
-    ease: 'power3.out',
-    stagger: 0.13
+  const tl = gsap.timeline({ delay: 0.55 })
+
+  tl.from(scope.querySelectorAll('.contact-word'), {
+    y: 14, duration: 0.65, ease: 'power3.out', stagger: 0.13
   })
-
-  // Email slides up after the last word lands
   .from(emailRef.value, {
-    opacity: 0,
-    y: 16,
-    duration: 0.55,
-    ease: 'power2.out'
+    y: 16, duration: 0.55, ease: 'power2.out'
   }, '-=0.2')
-
-  // Social icons stagger in last
   .from(socialsRef.value!.children, {
-    opacity: 0,
-    y: 8,
-    duration: 0.4,
-    ease: 'power2.out',
-    stagger: 0.1
+    y: 8, duration: 0.4, ease: 'power2.out', stagger: 0.1
   }, '-=0.15')
+})
+
+onUnmounted(() => {
+  if (rootEl.value) gsap.killTweensOf(rootEl.value.querySelectorAll('*'))
 })
 </script>
 
 <template>
-  <main class="contact-view">
+  <main ref="rootEl" class="contact-view">
 
     <!-- Ambient glow behind the headline -->
     <div class="ambient" />
