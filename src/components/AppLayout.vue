@@ -19,7 +19,7 @@ useMeta()
   height: 100vh;
   overflow: hidden;
   position: relative;
-  background-color: var(--bg-primary);
+  background-color: transparent;
   cursor: none;
 }
 </style>

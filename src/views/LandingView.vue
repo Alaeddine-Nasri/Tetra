@@ -1,36 +1,36 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import gsap from 'gsap'
 import { useContent } from '@/composables/useContent'
+import { useLoaderStore } from '@/stores/loader'
 
 const { content, t } = useContent()
+const loaderStore = useLoaderStore()
 
 const rootEl    = ref<HTMLElement | null>(null)
 const nameWords = computed(() => content.home.name.split(' '))
 
 let introTl: gsap.core.Timeline | null = null
+let unwatchLoader: (() => void) | null = null
+let fallbackTimer: ReturnType<typeof setTimeout> | null = null
 
-onMounted(() => {
+function runIntroAnimation() {
   if (!rootEl.value) return
   const scope = rootEl.value
 
-  // Always animate — every visit to landing replays the name reveal
   gsap.set('[data-nav-item]', { opacity: 0, y: -8 })
 
-  introTl = gsap.timeline({ delay: 0.3 })
-
+  introTl = gsap.timeline({ delay: 0.15 })
   introTl
-    .from(scope.querySelectorAll('.landing-word'), {
-      y: '108%',
-      duration: 1.35,
-      ease: 'power4.out',
-      stagger: 0.18,
-    })
-    .from(scope.querySelector('.landing-role'), {
-      y: 12,
-      duration: 0.75,
-      ease: 'power2.out',
-    }, '-=0.6')
+    .fromTo(scope.querySelectorAll('.landing-word'),
+      { y: '108%' },
+      { y: '0%', duration: 1.35, ease: 'power4.out', stagger: 0.18 }
+    )
+    .fromTo(scope.querySelector('.landing-role'),
+      { y: 12, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.75, ease: 'power2.out' },
+      '-=0.6'
+    )
     .to('[data-nav-item]', {
       opacity: 1,
       y: 0,
@@ -38,14 +38,36 @@ onMounted(() => {
       ease: 'power2.out',
       stagger: 0.1,
     }, '-=0.3')
+}
+
+onMounted(() => {
+  if (!rootEl.value) return
+  const scope = rootEl.value
+
+  // Always pre-hide name + role so there's no flash before animation
+  gsap.set(scope.querySelectorAll('.landing-word'), { y: '108%' })
+  gsap.set(scope.querySelector('.landing-role'), { opacity: 0, y: 12 })
+
+  function triggerAnimation() {
+    if (introTl) return  // already running
+    unwatchLoader?.(); unwatchLoader = null
+    if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null }
+    runIntroAnimation()
+  }
+
+  if (loaderStore.done) {
+    triggerAnimation()
+  } else {
+    // Wait for 3D loader, but never block longer than 5s
+    unwatchLoader = watch(() => loaderStore.done, (done) => { if (done) triggerAnimation() })
+    fallbackTimer = setTimeout(triggerAnimation, 5000)
+  }
 })
 
 onUnmounted(() => {
-  if (introTl) {
-    introTl.kill()
-    introTl = null
-  }
-  // Always restore nav items to fully visible — they must show on all other pages
+  unwatchLoader?.(); unwatchLoader = null
+  if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null }
+  if (introTl) { introTl.kill(); introTl = null }
   gsap.set('[data-nav-item]', { opacity: 1, y: 0 })
 })
 </script>
