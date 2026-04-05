@@ -16,7 +16,7 @@ onMounted(() => {
   if (!rootEl.value) return
   const scope = rootEl.value
 
-  const tl = gsap.timeline({ delay: 0.55 })
+  const tl = gsap.timeline({ delay: 2.5 })
 
   tl.from(scope.querySelectorAll('.contact-word'), {
     y: 14, duration: 0.65, ease: 'power3.out', stagger: 0.13

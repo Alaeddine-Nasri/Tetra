@@ -24,7 +24,7 @@ onMounted(() => {
   if (!rootEl.value) return
   const scope = rootEl.value
 
-  const tl = gsap.timeline({ delay: 0.55 })
+  const tl = gsap.timeline({ delay: 2.5 })
 
   tl.from(scope.querySelector('.about-heading'), {
     y: 28, duration: 0.75, ease: 'power3.out'

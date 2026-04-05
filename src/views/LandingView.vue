@@ -20,7 +20,7 @@ function runIntroAnimation() {
 
   gsap.set('[data-nav-item]', { opacity: 0, y: -8 })
 
-  introTl = gsap.timeline({ delay: 0.15 })
+  introTl = gsap.timeline({ delay: 2.5 })
   introTl
     .fromTo(scope.querySelectorAll('.landing-word'),
       { y: '108%' },

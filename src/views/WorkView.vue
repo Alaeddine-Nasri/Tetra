@@ -156,7 +156,7 @@ onMounted(async () => {
   // Scoped to wrapRef — no opacity (Cause B/C prevention per PROJECT_CONTEXT.md)
   if (wrapRef.value) {
     const cards = wrapRef.value.querySelectorAll('.project-card')
-    gsap.from(cards, { x: 30, duration: 0.65, ease: 'power3.out', stagger: 0.1, delay: 0.2 })
+    gsap.from(cards, { x: 30, duration: 0.65, ease: 'power3.out', stagger: 0.1, delay: 2.5 })
   }
 })
 

@@ -1,26 +1,58 @@
 <script setup lang="ts">
+import { computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useContent } from '@/composables/useContent'
+import { useSpaceNav, SECTIONS } from '@/stores/spaceNav'
 
 const { content, lang } = useContent()
+const router   = useRouter()
+const route    = useRoute()
+const spaceNav = useSpaceNav()
+
+const activeKey = computed(() => SECTIONS[spaceNav.currentIndex]?.key ?? 'home')
+
+function fly(idx: number, path: string) {
+  if (spaceNav.currentIndex === idx && !spaceNav.isFlying) return
+  spaceNav.navigateTo(idx)
+  setTimeout(() => router.push(path), 300)
+}
+
+function onLogoClick(e: MouseEvent) {
+  e.preventDefault()
+  fly(0, '/')
+}
+
+function onLinkClick(e: MouseEvent, path: string) {
+  e.preventDefault()
+  const idx = SECTIONS.findIndex(s => s.path === path)
+  if (idx >= 0) fly(idx, path)
+}
+
+// Keep section index in sync when navigating via URL bar / back-forward
+watch(() => route.path, (p) => {
+  const idx = spaceNav.indexForPath(p)
+  if (idx !== spaceNav.currentIndex) spaceNav.navigateTo(idx)
+}, { immediate: true })
 </script>
 
 <template>
   <nav class="navbar">
-    <RouterLink to="/" class="logo" data-nav-item>
+    <a href="/" class="logo" data-nav-item @click="onLogoClick">
       {{ content.nav.logo }}
-    </RouterLink>
+    </a>
 
     <div class="nav-right">
-      <RouterLink
+      <a
         v-for="link in content.nav.links"
         :key="link.key"
-        :to="link.path"
+        :href="link.path"
         class="nav-link"
-        active-class="active"
+        :class="{ active: activeKey === link.key }"
         data-nav-item
+        @click="onLinkClick($event, link.path)"
       >
         {{ link.label[lang.locale] }}
-      </RouterLink>
+      </a>
 
       <button class="lang-btn" data-nav-item @click="lang.toggle()">
         {{ lang.locale === 'fr' ? 'EN' : 'FR' }}
@@ -32,9 +64,7 @@ const { content, lang } = useContent()
 <style scoped>
 .navbar {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  top: 0; left: 0; right: 0;
   z-index: 100;
   display: flex;
   align-items: center;
@@ -51,8 +81,8 @@ const { content, lang } = useContent()
   color: rgba(245, 244, 242, 0.5);
   pointer-events: all;
   transition: color 0.25s ease;
+  text-decoration: none;
 }
-
 .logo:hover { color: var(--ink); }
 
 .nav-right {
@@ -70,8 +100,9 @@ const { content, lang } = useContent()
   text-transform: uppercase;
   color: rgba(245, 244, 242, 0.45);
   transition: color 0.25s ease;
+  text-decoration: none;
+  cursor: none;
 }
-
 .nav-link:hover  { color: rgba(245, 244, 242, 0.8); }
 .nav-link.active { color: var(--accent-light); }
 
@@ -88,6 +119,5 @@ const { content, lang } = useContent()
   padding: 0;
   transition: color 0.25s ease;
 }
-
 .lang-btn:hover { color: rgba(245, 244, 242, 0.6); }
 </style>
