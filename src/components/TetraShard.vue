@@ -19,11 +19,13 @@ onMounted(() => {
   const canvas  = canvasRef.value
   const overlay = overlayRef.value
   if (!canvas || !overlay) return
+  // Non-null from here on — asserting to satisfy TypeScript inside closures
+  const ov = overlay as HTMLCanvasElement
 
   // ── 2D overlay (cross lines) ──────────────────────────────────────────
   const ctx = overlay.getContext('2d')!
-  overlay.width  = window.innerWidth
-  overlay.height = window.innerHeight
+  ov.width  = window.innerWidth
+  ov.height = window.innerHeight
 
   // ── Three.js ──────────────────────────────────────────────────────────
   const scene  = new THREE.Scene()
@@ -554,7 +556,7 @@ onMounted(() => {
   // morphT 0→1: cross (+) → diamond (◇)
   // alpha: overall canvas opacity
   function drawCross(fillProgress: number, morphT: number, alpha: number) {
-    ctx.clearRect(0, 0, overlay.width, overlay.height)
+    ctx.clearRect(0, 0, ov.width, ov.height)
 
     const cx = window.innerWidth  / 2
     const cy = window.innerHeight / 2
@@ -562,7 +564,7 @@ onMounted(() => {
     // ── Dark background during loading ───────────────────────────────────
     if (alpha > 0.01) {
       ctx.fillStyle = `rgba(2, 3, 8, ${alpha * 0.96})`
-      ctx.fillRect(0, 0, overlay.width, overlay.height)
+      ctx.fillRect(0, 0, ov.width, ov.height)
     }
 
     // ── Energy explosion when shard reveals ──────────────────────────────
@@ -574,7 +576,7 @@ onMounted(() => {
       grad.addColorStop(0.3, `rgba(120, 60, 220, ${fa * 0.5})`)
       grad.addColorStop(1,   'rgba(0,0,0,0)')
       ctx.fillStyle = grad
-      ctx.fillRect(0, 0, overlay.width, overlay.height)
+      ctx.fillRect(0, 0, ov.width, ov.height)
     }
 
     // ── Explosion particles ───────────────────────────────────────────────
@@ -692,7 +694,7 @@ onMounted(() => {
   function skipToEnd() {
     if (phase === 'done') return
     phase = 'done'
-    ctx.clearRect(0, 0, overlay.width, overlay.height)
+    ctx.clearRect(0, 0, ov.width, ov.height)
     if (mainShard) {
       mainShard.position.copy(FINAL_MAIN_POS)
       mainShard.rotation.set(FINAL_MAIN_ROT.x, FINAL_MAIN_ROT.y, FINAL_MAIN_ROT.z)
@@ -718,8 +720,8 @@ onMounted(() => {
     camera.aspect = window.innerWidth / window.innerHeight
     camera.updateProjectionMatrix()
     renderer.setSize(window.innerWidth, window.innerHeight)
-    overlay.width  = window.innerWidth
-    overlay.height = window.innerHeight
+    ov.width  = window.innerWidth
+    ov.height = window.innerHeight
   }
   window.addEventListener('resize', onResize)
 
@@ -767,9 +769,9 @@ onMounted(() => {
     // ── Waiting: GLB not yet loaded ───────────────────────────────────
     if (phase === 'waiting') {
       // Show a pulsing center dot while waiting
-      ctx.clearRect(0, 0, overlay.width, overlay.height)
+      ctx.clearRect(0, 0, ov.width, ov.height)
       ctx.fillStyle = `rgba(4, 5, 12, 0.82)`
-      ctx.fillRect(0, 0, overlay.width, overlay.height)
+      ctx.fillRect(0, 0, ov.width, ov.height)
       const pulse = 0.4 + 0.6 * Math.sin(clock * 3)
       ctx.beginPath()
       ctx.arc(window.innerWidth / 2, window.innerHeight / 2, 3, 0, Math.PI * 2)
@@ -855,7 +857,7 @@ onMounted(() => {
         babyTargetPos.copy(FINAL_BABY_POS)
         shardCurrentScale = 1.0
         shardTargetScale  = 1.0
-        ctx.clearRect(0, 0, overlay.width, overlay.height)
+        ctx.clearRect(0, 0, ov.width, ov.height)
         window.removeEventListener('click', skipToEnd)
         loaderStore.complete()
       }

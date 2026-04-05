@@ -1,0 +1,1 @@
+import{d as u,r as t}from"./vendor-D5pONK78.js";const v=u("navigation",()=>{const e=t(0),n=t([]),r=t(null);function a(o,s){e.value=o,n.value=s}function i(o){r.value=o}return{workCardIndex:e,workDotPositions:n,activeAboutRow:r,setWorkCard:a,setActiveAboutRow:i}});export{v as u};
