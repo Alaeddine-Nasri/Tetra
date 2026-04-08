@@ -6,9 +6,10 @@
 
 ## Project Overview
 
-**Tetra** — personal developer portfolio for **Ala Eddine Nasri** (Frontend Engineer).
+**Tetra** — personal developer portfolio for **Ala Eddine Nasri** (Frontend Engineer, Paris).
 Dark, minimal aesthetic (deep navy/black background, purple accent `#4B3F8A` / `#6B5FBA`).
-4 separate routes connected by GSAP-powered horizontal slide transitions and a persistent traveling geometry shape.
+4 sections connected by 3D camera flight through a procedural architectural environment ("The Vault").
+**Live URL:** ala-nasri.dev (Vercel, auto-deploys on push to `main`)
 
 ---
 
@@ -21,7 +22,7 @@ Dark, minimal aesthetic (deep navy/black background, purple accent `#4B3F8A` / `
 | Routing | Vue Router 4 (`createWebHistory`) |
 | Animation | GSAP (no ScrollTrigger — all manual) |
 | State | Pinia |
-| 3D (placeholder) | Three.js WebGL canvas in LandingView |
+| 3D | Three.js — full scene in `TetraShard.vue` |
 | Fonts | Syne (headings) · DM Sans (body) |
 | i18n | Custom bilingual system (FR/EN toggle, no external lib) |
 
@@ -35,6 +36,8 @@ src/
 ├── main.ts                        # App entry
 ├── router/index.ts                # 4 routes: / /work /about /contact
 ├── stores/
+│   ├── spaceNav.ts                # ★ Section defs (cameraPos/lookAt/platformPos/shardWorld/babyWorld) + nav state (currentIndex, isFlying)
+│   ├── loader.ts                  # Loader gate store (done, complete())
 │   ├── navigation.ts              # workCardIndex, workDotPositions, activeAboutRow
 │   ├── intro.ts                   # localStorage flag for first-visit animation
 │   └── language.ts                # FR/EN locale reactive ref
@@ -43,206 +46,224 @@ src/
 │   ├── useContent.ts              # Provides content + t() + lang to components
 │   └── useMeta.ts                 # Sets <title> and <meta description> per route
 ├── components/
-│   ├── AppLayout.vue              # ★ Core: wheel nav, GSAP transitions, edge glow
-│   ├── TravelingShape.vue         # ★ Fixed-position SVG geometry, route-aware GSAP
-│   ├── Navbar.vue                 # RouterLink nav + lang toggle
-│   ├── ProjectPanel.vue           # ★ itssharl.ee-style 44vw slide panel (Teleport)
+│   ├── TetraShard.vue             # ★★ The entire 3D scene (~950 lines). Loader animation,
+│   │                              #    The Vault environment, GLB platforms, shard models,
+│   │                              #    particle system, camera fly, RAF loop.
+│   ├── AppLayout.vue              # Hides content (opacity:0) when isFlying via flush:'sync' watcher
+│   ├── Navbar.vue                 # Intercepts nav clicks → spaceNav.navigateTo + router.push
+│   ├── ProjectPanel.vue           # itssharl.ee-style 44vw slide panel (Teleport)
 │   ├── CustomCursor.vue           # Custom cursor (cursor:none on body)
-│   ├── ThreeCanvas.vue            # Three.js WebGL canvas (placeholder)
-│   └── MobileGate.vue            # Blocks non-wide-screen visitors
+│   └── MobileGate.vue             # Blocks non-wide-screen visitors
 └── views/
-    ├── LandingView.vue            # Home: name reveal animation, Three.js bg
-    ├── WorkView.vue               # ★ Horizontal card snap, timeline, dot tracking
-    ├── AboutView.vue              # ★ Two-col grid, stats, accordion rows
-    └── ContactView.vue            # ★ Headline + email + socials
+    ├── LandingView.vue            # Home: name reveal animation
+    ├── WorkView.vue               # Horizontal card snap, timeline, dot tracking
+    ├── AboutView.vue              # Two-col grid, stats, accordion rows
+    └── ContactView.vue            # Headline + email + socials
+
+public/3d/
+├── Shard.glb                      # Main crystal shard model
+├── BabyShard.glb                  # Small orbiting shard
+├── thealter.glb                   # Home platform (Blender model — stone altar)
+├── The_Gallery_Ruins.glb          # Work platform (Blender model — ruined gallery)
+├── thearchive.glb                 # About platform (Blender model — archive structure)
+└── Themonolith.glb                # Contact platform (Blender model — monolith)
 ```
 
 ---
 
 ## Architecture — Critical Concepts
 
-### 1. Page Navigation (AppLayout.vue)
-- `routeOrder = ['/', '/work', '/about', '/contact']`
-- Wheel scroll uses a **delta accumulator** (threshold `SECTION_THRESHOLD = 200`)
-- Visual **edge glow** indicators (left/right 2px bars) build up as delta accumulates
-- Idle reset after 600ms drains accumulator back to zero
-- Navigation locked for 1100ms after triggering to prevent double-fires
-- GSAP transition: **only `x` (translateX)** — NO opacity on root elements. This is critical.
+### 1. The Vault — 3D Environment
 
-### 2. The Blank Page / Invisible Content Bug (SOLVED — DO NOT REGRESS)
-This was the hardest recurring bug. Three root causes were found and fixed:
+The entire background is a single `TetraShard.vue` component rendered on a `position: fixed; z-index: 0` canvas. All UI views sit above it in DOM order.
 
-**Cause A:** `onBeforeEnter` sets `opacity:0` via GSAP inline style. Fast navigation interrupts `onEnter` before it completes. `opacity:0` stays permanently → blank page.
-**Fix A:** Remove opacity entirely from all root page transitions. Only use `x` (translateX).
+**Scene setup:**
+- `renderer.setClearColor(0x030008, 1)` — near-black background
+- `scene.fog = FogExp2(0x030008, 0.012)` — dense depth fog
+- `AmbientLight(0x5b3a8a, 0.6)` + `DirectionalLight(0xc8b0ff, 1.8)` at `(-3, 4, 2)`
 
-**Cause D:** `gsap.killTweensOf(el)` in `onLeave` kills a still-running enter tween → fires its `onInterrupt` → calls enter's `done()` → Vue's `mode="out-in"` state machine receives "enter complete" for a component that is simultaneously being left → permanent `<!--->` placeholder (blank page) on all subsequent navigations.
-**Fix D:** Remove ALL `gsap.killTweensOf()` calls. Use `overwrite: true` on every tween instead (GSAP resolves conflicts internally without firing the overwritten tween's callbacks). Never put `onInterrupt` on the enter tween — only on the leave tween.
+**Vault shell:**
+- `BoxGeometry(160, 110, 190)` rendered BackSide, centered at `(0, 0, -65)`
+- Canvas-generated texture: deep purple radial vignette gradient, no grid lines
+- `opacity: 0.35` — barely visible walls, just enough for depth
 
-**Cause B:** `gsap.from({opacity:0})` on children + root already at `opacity:0` = CSS multiplicative opacity = invisible.
-**Fix B:** Remove `opacity` from all child `from()` animations in AboutView and ContactView.
+**4 GLB platforms** (loaded via GLTFLoader, added to placeholder Groups):
+- Each normalized to ~14 units wide, centered on Group origin
+- All materials overridden: `color: 0x080809, roughness: 0.95, metalness: 0.05, emissive: 0x0f0520, emissiveIntensity: 0.06`
+- Groups positioned at: Home `(0,-2,-6)`, Work `(-18,-10,-43)` rot 0.35, About `(8,3,-87)` rot -0.5, Contact `(-2,-1,-130)`
 
-**Cause C:** GSAP with CSS class selectors (`.about-heading`) + `delay:0.55` fires across component remounts. A tween started on mount fires 0.55s later — if the user navigated away and back, it targets the NEW mount's DOM, causing conflicts and potentially broken opacity states.
-**Fix C (applied in session 2026-04-02):** Replaced all CSS class selectors in AboutView and ContactView with `scope.querySelector/querySelectorAll()` scoped to the component's `rootEl` ref. Added `onUnmounted(() => gsap.killTweensOf(rootEl.value.querySelectorAll('*')))`.
+**4 per-platform PointLights** `(0x7b2fbe, range: 55)` — intensity lerps with camera proximity (max 2.8):
+- Positions: `[0,2,-6]`, `[-18,-6,-43]`, `[8,7,-87]`, `[-2,2,-130]`
 
-### 3. WorkView — Card Snap System
-- Cards sit in a horizontal flex track (`trackRef`)
-- RAF lerp loop: `currentX += (targetX - currentX) * 0.072` → smooth `translateX`
-- `computeSnaps()` runs after mount: measures real DOM positions → `snapPositions[]` (px to scroll per card) and `dotScreenX[]` (real screen x of each dot)
-- `navStore.setWorkCard(idx, dotScreenX)` publishes both to Pinia so TravelingShape can track
+**18 debris pieces** — `BoxGeometry` fragments scattered between platforms:
+- `debrisMat`: `color: 0x090909, roughness: 0.95, metalness: 0.05`
+- Edge lines: `opacity 0.12–0.20`, colors `[0x1e0838, 0x260a44, 0x180630]`
+- Slowly rotate in RAF loop
+
+### 2. Camera System
+
+Each section in `spaceNav.ts` defines a full 3D camera pose:
+
+| Section | cameraPos | lookAt |
+|---------|-----------|--------|
+| Home | `(0, 0, 6)` | `(0, 0, -2)` |
+| Work | `(-14, -6, -36)` | `(-17, -8, -42)` |
+| About | `(13, 7, -80)` | `(10, 5, -86)` |
+| Contact | `(-4, 3, -124)` | `(-2, 0, -129)` |
+
+**Flight:** Quadratic Bezier arc with control point offset perpendicular to path + upward. Duration `Math.min(2.0, Math.max(1.0, arcLen / 55))`. `camera.lookAt(camTarget)` each frame + roll via `camera.rotateZ(camBank)` in local space.
+
+**Idle bob:** `sin(t*0.47)*0.004` X + `sin(t*0.31)*0.006` Y
+
+**Shard during flight:** locked to `camPos + fwd * 6` (always in front of camera, never clips behind)
+
+### 3. Shard System
+
+- `mainShard` normalized via `normalizeModel(obj, 2.2)` → returns `mainBaseScale`
+- Scale always: `mainShard.scale.setScalar(mainBaseScale * shardCurrentScale)` — never `setScalar(1.0)`
+- `babyShard` normalized to `0.6`
+- Phase state machine: `waiting → phase1 → phase2 → phase3 → done`
+- `pMat.opacity = 0` forced during phase3 — particles hidden until shard settles
+
+### 4. Page Navigation
+
+- `scrollLock` prevents multiple section advances. Released **only** in `spaceNav.onArrived()` — never by timer.
+- `AppLayout.vue` watches `spaceNav.isFlying` with `flush: 'sync'` → sets content `opacity: 0` during flight, restores with 80ms delay on arrival.
+- `Navbar.vue` intercepts clicks → `spaceNav.navigateTo(idx)` + `router.push(path)`.
+- All imports in `Navbar.vue` must be at the **top** of the file — `import { watch }` after function defs breaks routing.
+
+### 5. WorkView — Card Snap System
+
+- Cards in horizontal flex track (`trackRef`), RAF lerp: `currentX += (targetX - currentX) * 0.072`
+- `computeSnaps()` measures real DOM positions → `snapPositions[]` + `dotScreenX[]`
 - Card wheel: threshold `CARD_THRESHOLD = 200`, lock 450ms. At boundaries, event bubbles to AppLayout.
-- Also supports mouse drag to snap cards
-
-### 4. TravelingShape.vue — The Geometry
-- Fixed-position SVG: hexagon (outer, 6 vertex dots, 3 spokes) + inner triangle + dashed orbit ring
-- CSS animations: `group-outer` rotates CW 60s, `group-inner` CCW 80s, `ring-orbit` CW 38s
-- GSAP positions it on route change via `moveToRoute(name)`
-- On `/work`: watches `workCardIndex + workDotPositions` → moves to real dot position
-- `TIMELINE_Y_FRAC = 0.30` must always match CSS `.work-timeline { top: 30vh }` in WorkView
-- On `/about`: watches `activeAboutRow` → scale pulse + vertex dot color flash (lavender)
-- CSS `translate: -50% -50%` centers the 240px SVG on GSAP x/y coordinates
-
-### 5. WorkView Layout Math (current values — must stay in sync)
-```
-.work-timeline { top: 30vh }          ← timeline horizontal bar position
-.track { padding-top: 35vh }          ← cards start 5vh below the timeline
-.card-dot { top: -5vh; translate: -50% -50% }  ← dot center lands exactly on line
-TIMELINE_Y_FRAC = 0.30               ← in TravelingShape.vue
-```
-If you change one, change all four.
+- GSAP entrance scoped to component ref — no global class selectors.
 
 ### 6. ProjectPanel.vue
+
 - `Teleport to="body"` — avoids z-index/overflow issues
 - 44vw panel slides from right, `x: 100% → 0%`
-- `.panel-stagger` class on children for staggered entrance (delay 0.3s after panel lands)
-- Close: button (`@click.stop`), Escape key, clicking backdrop
-- KNOWN ISSUE: `.panel-stagger` uses a CSS class selector → same cross-mount risk as Cause C above. Low priority since panel only opens manually.
+- Close: button, Escape key, clicking backdrop
 
 ---
 
-## Routes & Waypoints
+## Critical Rules — Do Not Break
 
-| Route | Path | Shape position (viewport fraction) | Scale |
-|---|---|---|---|
-| Home | `/` | x: 0.68, y: 0.40 | 1 (full size) |
-| Work | `/work` | Overridden by real dot positions | 0.20 (tiny) |
-| About | `/about` | x: 0.80, y: 0.46 | 0.80 |
-| Contact | `/contact` | x: 0.22, y: 0.44 | 0.72 |
+1. **`AppLayout .layout` must stay `background-color: transparent`** — making it opaque covers the fixed canvas entirely (div stacks above canvas in DOM order).
+2. **`normalizeModel` returns base scale** — always `mainShard.scale.setScalar(mainBaseScale * shardCurrentScale)`, never `setScalar(1.0)`.
+3. **`pMat.opacity = 0` during phase3** — particles must stay hidden until the shard settles in done phase.
+4. **`scrollLock` only released in `spaceNav.onArrived()`** — never by timer.
+5. **AppLayout watches `spaceNav.isFlying` with `flush: 'sync'`**, not `route.path` — prevents content flash.
+6. **All imports in Navbar.vue at the top** — `import { watch }` after function defs breaks routing silently.
+7. **TypeScript overlay cast:** `const ov = overlay as HTMLCanvasElement` after null guard — use `ov.width/height` inside `drawCross`.
+8. **Never animate opacity on root page elements** — only `x` (translateX) for transitions. Opacity on root = blank page risk.
+9. **Always scope GSAP to DOM refs** — `scope.querySelector('.foo')` not `gsap.from('.foo')` — prevents cross-mount tween pollution.
+10. **GLB loads must come after `const gltfLoader = new GLTFLoader()`** — `const` is not hoisted; calling `.load()` before the declaration = ReferenceError = silent dark screen.
 
 ---
 
-## Current Status (as of 2026-04-02)
+## Bugs History (Resolved — Do Not Re-Introduce)
 
-### ✅ Done
-- All 4 routes working with Vue Router
-- Horizontal GSAP slide transitions (x only, NO opacity — intentional)
-- TravelingShape: SVG geometry with CSS rotation, route-aware repositioning
-- LandingView: name reveal animation, Three.js WebGL canvas (placeholder)
-- WorkView: horizontal card snap, RAF lerp, drag support, timeline fill, dot tracking
-- ProjectPanel: itssharl.ee-style 44vw side panel with staggered entrance
-- AboutView: two-column grid, stats, expandable accordion rows, geometry reaction
-- ContactView: headline word split, email, socials
-- Navbar: RouterLink active state, FR/EN toggle
-- Bilingual system (FR/EN) across all content
-- MobileGate: blocks small screens
-- Custom cursor (`cursor: none` on body)
-- Edge glow scroll indicators
-- Blank page bug (Cause A + B): fixed — no opacity in transitions or child GSAP froms
-- Blank page bug (Cause C): fixed — GSAP class selectors replaced with scoped refs + onUnmounted cleanup in AboutView and ContactView
-- WorkView timeline math corrected: timeline 30vh, track 35vh, dots exactly on line
-- Intro-card reverted to flex flow (not absolute positioned above timeline)
-- TIMELINE_Y_FRAC updated to 0.30 in TravelingShape
-
-### 🔴 Known Issues / Not Done
-- `ProjectPanel.vue` still uses `.panel-stagger` CSS class selector in GSAP (low priority — panel only opens via user click, not navigation)
-- WorkView card entrance animation (`gsap.fromTo('.project-card', ...)`) also uses a CSS class selector — could cause issues on fast navigation to/from work page. Lower risk because WorkView is scoped, but the pattern should be fixed if it surfaces.
-- Three.js canvas in LandingView is a placeholder (no actual 3D scene content)
-- No real project screenshots (placeholder `<img>` + `screenshot-slot` divs in panel)
-- No mobile layout (MobileGate blocks entirely — intentional for now)
-
-### 🟡 Potential Next Steps (user has not explicitly requested yet)
-- Add real project content (images, descriptions, URLs) to `src/data/content.ts`
-- Three.js: implement actual geometry/particle scene in ThreeCanvas
-- Fix the ProjectPanel `.panel-stagger` class selector (scope to panel DOM ref)
-- Fix WorkView card entrance animation class selector
-- SEO / Open Graph meta tags
-- Deploy (Vercel/Netlify)
+| Bug | Root cause | Fix |
+|-----|-----------|-----|
+| Blank page (Cause A) | `onBeforeEnter` sets `opacity:0`, fast nav interrupts enter tween | Remove opacity from all root transitions — only use `x` |
+| Blank page (Cause B) | `gsap.from({opacity:0})` on children + root already `opacity:0` | Remove opacity from child `from()` calls |
+| Blank page (Cause C) | GSAP class selectors fire across component remounts | Scope GSAP to `rootEl` ref, add `onUnmounted` cleanup |
+| Blank page (Cause D) | `gsap.killTweensOf(el)` in onLeave killed enter tween → called `done()` → Vue out-in corrupted | Removed all `killTweensOf` in transitions; use `overwrite:true` instead |
+| Cross loader glitch | phase1 triggered before GLB loaded | Start phase1 only inside GLB `onLoad` callback |
+| Shard scale glitch | done phase wrote `scale.setScalar(1.0)` | Store `mainBaseScale`, always multiply |
+| Particles above shard mid-animation | `depthTest: false` + opacity not zeroed | `pMat.opacity = 0` forced during phase3 |
+| Content always LandingView | `import { watch }` after function defs in Navbar | Move all imports to top |
+| Content flash on scroll | `route.path` watcher is async | Watch `isFlying` with `flush: 'sync'` |
+| Multiple sections scrolled at once | `scrollLock` released by 1200ms timer | Release only in `onArrived()` |
+| Super cube glitch (shard behind camera) | Shard Z lagged, camera overtook it | Lock shard to `camPos + fwd * 6` during flight |
+| Dark screen after loader | AppLayout `background` set to opaque | Must stay `transparent` |
+| Vercel TS build errors | `overlay` typed as nullable in closure | Cast to `HTMLCanvasElement` as `ov` |
+| Dark screen after GLB load | `gltfLoader.load()` called before `const gltfLoader` declaration | Move all GLB loads after gltfLoader declaration |
 
 ---
 
 ## Important Constraints & Decisions
 
-1. **Never animate opacity on root page elements** — only `x` (translateX). This is not a preference, it's a hard constraint to prevent the blank page bug.
-2. **Always scope GSAP to DOM refs, not CSS class strings** — `scope.querySelector('.foo')` not `gsap.from('.foo')` — to prevent cross-mount tween pollution.
-3. **Always add `onUnmounted` cleanup** when using delayed GSAP timelines: `gsap.killTweensOf(el)` or equivalent.
+1. **Never animate opacity on root page elements** — only `x` (translateX). Hard constraint to prevent blank page bug.
+2. **Always scope GSAP to DOM refs**, not CSS class strings.
+3. **Always add `onUnmounted` cleanup** when using delayed GSAP timelines.
 4. **Timeline/dot/shape constants must stay in sync** — if you change `top: 30vh` on `.work-timeline`, update `padding-top` on `.track`, the `card-dot` offset, and `TIMELINE_Y_FRAC` in TravelingShape.
-5. **Do not add opacity to child `gsap.from()` calls** in page views — the root page element is always visible (CSS opacity: 1), child opacity animations multiply and can zero out content.
-6. **WorkView card events must call `e.preventDefault()` + `e.stopPropagation()`** within card range to prevent AppLayout from consuming card scrolls.
-7. **`cursor: none` everywhere** — custom cursor replaces native cursor on all interactive elements.
-8. The site is desktop-only. MobileGate blocks at `<900px` width. Do not add mobile breakpoints.
+5. **Do not add opacity to child `gsap.from()` calls** in page views.
+6. **WorkView card events must call `e.preventDefault()` + `e.stopPropagation()`** within card range.
+7. **`cursor: none` everywhere** — custom cursor replaces native on all interactive elements.
+8. The site is **desktop-only**. MobileGate blocks at `<900px`. Do not add mobile breakpoints.
 
 ---
 
 ## Session Log
 
-### Session 1 (pre-2026-04-02 — carried over from previous context)
-**Work done:**
+### Session 1 (pre-2026-04-02)
 - Built entire portfolio from scratch: all 4 views, routing, GSAP transitions, TravelingShape, ProjectPanel, Pinia stores, bilingual system
-- Iterated through multiple UX revisions: first vertical scroll, then reverted to horizontal page transitions
 - Fixed blank page bug (Causes A and B)
-- Added edge glow scroll indicators, card-by-card snap scrolling
-- Implemented real dot position measurement (`computeSnaps`) for accurate shape tracking
-- Fixed timeline full-width, dot position math, scroll threshold tuning
-
-**Bugs fixed:**
-- Wheel navigation not working → added `@wheel="onWheel"` to AppLayout
-- Content invisible → removed opacity from root transitions and child GSAP froms
-- Work heading overflowing timeline → restructured layout
-- First dot not on timeline → `computeSnaps` now measures real positions
-- Scroll too hard → threshold 520 → 200
-
----
+- Added edge glow scroll indicators, card snap scrolling, real dot position measurement
 
 ### Session 2 — 2026-04-02
-**Work done:**
-- Fixed **blank page / scroll-back bug (Cause C)**: scoped all GSAP animations in AboutView and ContactView to component `rootEl` ref using `scope.querySelector/querySelectorAll()`. Added `onUnmounted` cleanup via `gsap.killTweensOf(rootEl.value.querySelectorAll('*'))`.
-- Fixed **WorkView layout**: reverted intro-card from `position: absolute; top: 8vh` back to normal flex flow item. Heading now sits naturally to the left of cards, below the timeline.
-- Fixed **timeline + dot alignment math**: timeline `26vh → 30vh`, track padding `31vh → 35vh`, dot offset stays `top: -5vh; translate(-50%, -50%)` → dot center now exactly on timeline.
-- Updated `TIMELINE_Y_FRAC = 0.30` and `waypoints.work.y = 0.30` in TravelingShape.
-- Generated this PROJECT_CONTEXT.md file.
+- Fixed blank page (Cause C): scoped GSAP in AboutView and ContactView to `rootEl` ref, added `onUnmounted` cleanup
+- Fixed WorkView layout: intro-card back to flex flow, timeline `26vh → 30vh`, track `35vh`, `TIMELINE_Y_FRAC = 0.30`
+- Generated PROJECT_CONTEXT.md
 
-**Files changed this session:**
-- `src/views/AboutView.vue` — scoped GSAP, added rootEl ref, added onUnmounted
-- `src/views/ContactView.vue` — scoped GSAP, added rootEl ref, added onUnmounted
-- `src/views/WorkView.vue` — timeline 30vh, track 35vh, intro-card back to flex flow, updated comments
-- `src/components/TravelingShape.vue` — TIMELINE_Y_FRAC 0.26 → 0.30, waypoints.work.y 0.26 → 0.30
-
----
 ### Session 3 — 2026-04-04
+- Fixed blank page (Cause D): removed all `gsap.killTweensOf` from transitions; use `overwrite:true`
+- Final resolution: stripped AppLayout to bare `<RouterView />` — no GSAP, no Transition wrapper
+- Fixed WorkView: `.card-inner` wrapper, scale/vignette fixes, scoped entrance GSAP
+- Fixed LandingView: `markPlayed()` on mount, `gsap.set` cleanup
+
+### Session 4 — 2026-04-07 (The Vault + GLB Platforms)
 **Work done:**
-- Built and fully removed CrystalShard.vue (Three.js octahedron) twice — concept abandoned
-- Fixed WorkView: dot on first card floating above timeline (scale(1.03) was on outer card, not inner). Fixed by adding `.card-inner` wrapper and scoping scale to it. Then removed active scale entirely at user request — all cards identical in size.
-- Fixed WorkView: vignette always visible on active card → removed `.project-card.is-active .card-vignette` selector, hover only.
-- Fixed WorkView card entrance animation: unscoped `gsap.fromTo('.project-card', { opacity: 0 })` → replaced with scoped ref + no opacity.
-- Fixed LandingView blank on return: `introStore.played` was always false because `markPlayed()` was gated on `onComplete` which never fired if user navigated away mid-animation. Fixed: call `markPlayed()` immediately on mount.
-- Fixed LandingView `gsap.set(y:0)` on fresh DOM elements inside `overflow:hidden` masks causing invisible words.
-- Diagnosed and fixed blank page (Cause D): `gsap.killTweensOf(el)` in onLeave was killing a still-running enter tween, firing its `onInterrupt` → calling enter's `done()` → corrupting Vue's out-in state machine → permanent `<!--->` placeholder.
-- Final fix for persistent blank page bug: removed ALL page transition animations from AppLayout.vue entirely. Plain `<RouterView />`, no GSAP, no Transition wrapper. Instant navigation, zero blank page risk.
+- Replaced flat space/galaxy background with fully procedural "The Vault" 3D architectural environment
+- Rewrote `spaceNav.ts`: section defs now full 3D (`cameraPos`, `lookAt`, `platformPos`, `shardWorld`, `babyWorld`) instead of Z-only
+- Built quadratic Bezier camera flight with perpendicular arc control point + roll (`camBank`)
+- Built 4 procedural platforms (BoxGeometry + EdgesGeometry groups) — later replaced by GLBs
+- Added 4 per-platform PointLights with proximity intensity lerp
+- Added 18 floating debris pieces with slow rotation
+- Vault shell: BoxGeometry(260×170×310) BackSide with canvas grid texture
+- Added GLB platform loading (GLTFLoader): `thealter.glb` (Home), `The_Gallery_Ruins.glb` (Work), `thearchive.glb` (About), `Themonolith.glb` (Contact)
+- Each GLB normalized to 14 units, materials overridden to dark purple Vault palette
+- Centered main shard over altar at `(0.0, 0.6, -5)` world space
+- Iterated vault wall texture: grid → stone masonry → smooth radial vignette (final)
+- Fixed `gltfLoader used before declaration` bug (dark screen) — moved all GLB loads after `const gltfLoader`
 
-**Files changed this session:**
-- `src/components/AppLayout.vue` — stripped to bare RouterView, no transitions
-- `src/views/WorkView.vue` — card-inner wrapper, scale/vignette fixes, GSAP scoped
-- `src/views/LandingView.vue` — markPlayed() moved to mount, gsap.set cleanup fixed
-- `src/components/CrystalShard.vue` — created and deleted (twice)
-- `src/composables/useCrystalAnimation.ts` — created and deleted (twice)
+**Files changed:**
+- `src/stores/spaceNav.ts` — full rewrite of SectionDef type + SECTIONS array
+- `src/components/TetraShard.vue` — full Vault environment, GLB loaders, 3D camera system
 
-### ✅ Current status (end of session 3)
-- All 4 routes navigate correctly, no blank pages
-- WorkView cards all identical size, hover vignette works, dot on timeline
-- LandingView intro animation plays once, content visible on return
-- No page transition animation (intentionally removed — safe baseline to rebuild from)
+### Session 5 — 2026-04-07 (Material Darkening + Distance Scaling)
+**Work done:**
+- Fog density: `FogExp2(0x030008, 0.005)` → `0.012`
+- Wall: opacity `0.6 → 0.35`, vault shell `BoxGeometry(260,170,310)` → `(160,110,190)`, centered `(0,0,-110)` → `(0,0,-65)`
+- `debrisMat`: `color: 0x070010, roughness: 0.7, metalness: 0.6` → `color: 0x090909, roughness: 0.95, metalness: 0.05`
+- Debris edge lines: opacity `0.45–0.75` → `0.12–0.20`, colors `[0x4a1a8a, 0x5522aa, 0x3d1577]` → `[0x1e0838, 0x260a44, 0x180630]`
+- All 4 GLB platform materials: `color: 0x0a0014, roughness: 0.88, metalness: 0.25, emissive: 0x3a1060, emissiveIntensity: 0.18` → `color: 0x080809, roughness: 0.95, metalness: 0.05, emissive: 0x0f0520, emissiveIntensity: 0.06`
+- Scaled all section positions ~45% Z, ~30% X/Y in `spaceNav.ts` (new values in camera table above)
+- Updated platform group positions, platLightPos, and debris positions in `TetraShard.vue` to match
+- Flight duration: `Math.min(2.8, Math.max(1.6, arcLen/65))` → `Math.min(2.0, Math.max(1.0, arcLen/55))`
 
-### 🔴 Known gaps
-- Page transitions removed — can be re-added but MUST use CSS transitions or Vue's built-in `<Transition>` with `name=` prop (CSS-only), NOT GSAP hooks. GSAP hooks + `mode="out-in"` have proven too fragile with fast navigation.
-- WorkView card entrance animation still uses GSAP from() with no opacity — low risk but should be watched
+**Status at end of session:** All material + distance changes applied. Not yet tested on live — push to `main` to deploy.
+
+**Files changed:**
+- `src/stores/spaceNav.ts` — SECTIONS positions scaled down
+- `src/components/TetraShard.vue` — fog, wall, debris mat, debris edges, GLB mats, platform positions, platLightPos, debris positions, flight duration
+
+### Session 6 — 2026-04-07 (Gallery Slabs + Dark Aesthetic Restore)
+**Work done:**
+- Restored dark Vault production aesthetic after diagnostic bright mode:
+  - `setClearColor(0x030008, 1)`, `toneMappingExposure = 0.75`, `FogExp2(0x030008, 0.012)`
+  - Ambient: `AmbientLight(0x1a1a1a, 0.8)` + single dim directional `(0x9090a0, 0.25)` — no purple global tint
+  - Platform lights: `PointLight(0xd0c8f0, 4.5, 45)` main + `PointLight(0x7b2fbe, 0.55, 30)` rim per platform
+  - Proximity max: `4.5` (was `8.0`), base now `0` so far platforms are dark
+  - Flight duration: `Math.min(2.0, Math.max(1.0, arcLen/55))` (restored)
+- Fixed About/Contact platform materials: `color: 0x1a1a1c, roughness: 0.95, metalness: 0.02, emissive: 0x000000` (were still old purple `0x0a0014 / 0x3a1060`)
+- Home altar: `color: 0x28282c, emissive: 0x100818, emissiveIntensity: 0.08`
+- Gallery slabs (Work section): `color: 0x303038, emissive: 0x0c0820, emissiveIntensity: 0.10`
+- Gallery backdrop wall: `color: 0x28282e, emissive: 0x080610, emissiveIntensity: 0.05`
+
+**Files changed:**
+- `src/components/TetraShard.vue` — dark aesthetic restore, platform materials, flight duration
 
 <!-- next Claude: append your session below this line -->

@@ -23,7 +23,7 @@ watch(() => spaceNav.isFlying, (flying) => {
   <div class="layout">
     <CustomCursor />
     <Navbar />
-    <div class="content-wrap" :class="{ 'content-wrap--hidden': !visible }">
+    <div class="content-wrap" :style="{ opacity: visible ? 1 : 0, transition: visible ? 'opacity 0.35s ease' : 'none' }">
       <RouterView />
     </div>
   </div>
@@ -40,11 +40,5 @@ watch(() => spaceNav.isFlying, (flying) => {
 
 .content-wrap {
   opacity: 1;
-  transition: opacity 0.35s ease;
-}
-
-.content-wrap--hidden {
-  opacity: 0;
-  transition: opacity 0.15s ease;
 }
 </style>

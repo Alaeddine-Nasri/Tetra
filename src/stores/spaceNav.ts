@@ -2,44 +2,49 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 export interface SectionDef {
-  key:        string
-  path:       string
-  cameraZ:    number
-  sectionZ:   number
-  shardLocal: [number, number, number]
-  babyLocal:  [number, number, number]
-  shardScale: number
-  rotPeriod:  number
+  key:         string
+  path:        string
+  cameraPos:   [number, number, number]
+  lookAt:      [number, number, number]
+  platformPos: [number, number, number]  // used for proximity lighting
+  shardWorld:  [number, number, number]
+  babyWorld:   [number, number, number]
+  shardScale:  number
+  rotPeriod:   number
 }
 
 export const SECTIONS: SectionDef[] = [
   {
-    key: 'home', path: '/',
-    cameraZ:  6,   sectionZ:    0,
-    shardLocal: [ 1.8,  0.1, 0], babyLocal: [ 2.8, -0.5, 0],
+    key: 'home',    path: '/',
+    cameraPos:   [  0,   0,    6 ],
+    lookAt:      [  0,   0,   -2 ],
+    platformPos: [  0,  -2,   -6 ],
+    shardWorld:  [  0.0,  0.6,  -5   ],  babyWorld: [  3.2,  -0.2,  -4.5 ],
     shardScale: 1.0, rotPeriod: 18,
   },
   {
-    // Work: main shard smaller, sits below the "Projects" headline (low Y)
-    // baby shard above the first project card dot (upper right)
-    key: 'work', path: '/work',
-    cameraZ: -74,  sectionZ:  -80,
-    shardLocal: [ 1.2, -1.4, 0], babyLocal: [ 2.4,  1.4, 0],
+    key: 'work',    path: '/work',
+    cameraPos:   [-17,  -5,  -34 ],
+    lookAt:      [-17,  -7.2,  -46 ],
+    platformPos: [-17,  -9,  -44 ],
+    shardWorld:  [-21,   -4,  -50 ],  babyWorld: [-17,  -5,  -44 ],
     shardScale: 0.65, rotPeriod: 24,
   },
   {
-    // About: shard on the left, companion on the far left
-    key: 'about', path: '/about',
-    cameraZ: -154, sectionZ: -160,
-    shardLocal: [-1.6, 0.2, 0], babyLocal: [-2.8, -0.5, 0],
-    shardScale: 0.85, rotPeriod: 22,
+    key: 'about',   path: '/about',
+    cameraPos:   [ 3,   5.5,  -76.5 ],
+    lookAt:      [ 7,   5,  -86 ],
+    platformPos: [  8,   3,  -87 ],
+    shardWorld:  [  12,   4.8,  -87 ],  babyWorld: [ 12,   6,  -84.2 ],
+    shardScale: 0.95, rotPeriod: 22,
   },
   {
-    // Contact: centered, large, dramatic — keep original position
     key: 'contact', path: '/contact',
-    cameraZ: -234, sectionZ: -240,
-    shardLocal: [ 0.0, -0.3, 0], babyLocal: [ 0.9,  0.7, 0],
-    shardScale: 1.3, rotPeriod: 30,
+    cameraPos:   [ -4,   4, -114.5 ],
+    lookAt:      [ -2.5,   2, -144 ],
+    platformPos: [ -2,  -1, -130 ],
+    shardWorld:  [ 0.5,   7.5, -130 ],  babyWorld: [  0,   2, -122 ],
+    shardScale: 1.3,  rotPeriod: 30,
   },
 ]
 

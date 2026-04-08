@@ -4,10 +4,14 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { useLoaderStore } from '@/stores/loader'
 import { useSpaceNav, SECTIONS } from '@/stores/spaceNav'
+import { useNavigationStore } from '@/stores/navigation'
+import { content } from '@/data/content'
+import { galleryBridge } from '@/utils/galleryBridge'
 import { useRouter } from 'vue-router'
 
 const loaderStore = useLoaderStore()
 const spaceNav    = useSpaceNav()
+const navStore    = useNavigationStore()
 const router      = useRouter()
 const canvasRef   = ref<HTMLCanvasElement | null>(null)
 const overlayRef  = ref<HTMLCanvasElement | null>(null)
@@ -19,15 +23,12 @@ onMounted(() => {
   const canvas  = canvasRef.value
   const overlay = overlayRef.value
   if (!canvas || !overlay) return
-  // Non-null from here on — asserting to satisfy TypeScript inside closures
   const ov = overlay as HTMLCanvasElement
 
-  // ── 2D overlay (cross lines) ──────────────────────────────────────────
   const ctx = overlay.getContext('2d')!
   ov.width  = window.innerWidth
   ov.height = window.innerHeight
 
-  // ── Three.js ──────────────────────────────────────────────────────────
   const scene  = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 600)
   camera.position.set(0, 0, 6)
@@ -37,329 +38,378 @@ onMounted(() => {
   renderer.setSize(window.innerWidth, window.innerHeight)
   renderer.outputColorSpace = THREE.SRGBColorSpace
   renderer.toneMapping = THREE.ACESFilmicToneMapping
-  renderer.toneMappingExposure = 0.9
-  renderer.setClearColor(0x000000, 0)
+  renderer.toneMappingExposure = 1.2
+  renderer.setClearColor(0x232330, 1)
 
-  // ── Lights ────────────────────────────────────────────────────────────
-  scene.add(new THREE.AmbientLight(0x5b3a8a, 0.6))
-  const dir = new THREE.DirectionalLight(0xc8b0ff, 1.8)
-  dir.position.set(-3, 4, 2)
-  scene.add(dir)
+  scene.add(new THREE.AmbientLight(0xccccdd, 1.8))
 
-  // ── Space environment ─────────────────────────────────────────────────
+  const fill = new THREE.DirectionalLight(0xffffff, 1.5)
+  fill.position.set(0, 12, -20)
+  scene.add(fill)
 
-  // Shared star vertex shader — per-vertex size + brightness
-  const starVS = `
-    attribute float aSize;
-    attribute float aBright;
-    varying float vBright;
-    void main() {
-      vBright = aBright;
-      vec4 mv = modelViewMatrix * vec4(position, 1.0);
-      gl_PointSize = aSize * (120.0 / -mv.z);
-      gl_Position  = projectionMatrix * mv;
-    }
-  `
-  const starFS = `
-    varying float vBright;
-    void main() {
-      vec2  c = gl_PointCoord - 0.5;
-      float d = length(c);
-      if (d > 0.5) discard;
-      // Sharp pinpoint core + soft halo
-      float core = pow(max(0.0, 1.0 - d * 2.6), 3.5);
-      float halo = smoothstep(0.5, 0.0, d) * 0.18;
-      float a = (core + halo) * vBright;
-      // Slight blue-white tint variation
-      vec3 col = mix(vec3(0.75, 0.82, 1.0), vec3(1.0, 0.97, 0.92), vBright * 0.6);
-      gl_FragColor = vec4(col, a);
-    }
-  `
-  const heroFS = `
-    varying float vBright;
-    void main() {
-      vec2  c = gl_PointCoord - 0.5;
-      float d = length(c);
-      if (d > 0.5) discard;
-      // Pinpoint core
-      float core = pow(max(0.0, 1.0 - d * 2.2), 4.0);
-      // Soft glow
-      float glow = pow(max(0.0, 1.0 - d * 1.8), 2.2) * 0.35;
-      // Diffraction cross spike (4-point star)
-      float spike = max(0.0, 1.0 - abs(c.x) * 28.0) * max(0.0, 1.0 - d * 3.5) * 0.55
-                  + max(0.0, 1.0 - abs(c.y) * 28.0) * max(0.0, 1.0 - d * 3.5) * 0.55;
-      float a = (core + glow + spike * 0.7) * vBright;
-      gl_FragColor = vec4(0.96, 0.95, 1.0, a);
-    }
-  `
+  const fill2 = new THREE.DirectionalLight(0xaaaacc, 0.8)
+  fill2.position.set(10, -4, 5)
+  scene.add(fill2)
 
-  // ── Main starfield (700 stars — quality over quantity) ───────────────
-  const STAR_COUNT    = 700
-  const sPos          = new Float32Array(STAR_COUNT * 3)
-  const sSizes        = new Float32Array(STAR_COUNT)
-  const sBrightArr    = new Float32Array(STAR_COUNT)
-  const sTwinkPhase   = new Float32Array(STAR_COUNT)
-  const sTwinkSpeed   = new Float32Array(STAR_COUNT)
+  scene.fog = new THREE.FogExp2(0x232330, 0.005)
 
-  for (let i = 0; i < STAR_COUNT; i++) {
-    const phi   = Math.acos(2 * Math.random() - 1)
-    const theta = Math.random() * Math.PI * 2
-    const r     = 90 + Math.random() * 110
-    sPos[i*3]     = r * Math.sin(phi) * Math.cos(theta)
-    sPos[i*3+1]   = r * Math.sin(phi) * Math.sin(theta)
-    sPos[i*3+2]   = r * Math.cos(phi)
-    // Power-law distribution: mostly tiny, few medium, rare large
-    const t       = Math.pow(Math.random(), 2.5)
-    sSizes[i]     = 0.4 + t * 2.8
-    sBrightArr[i] = 0.2 + Math.random() * 0.8
-    sTwinkPhase[i]= Math.random() * Math.PI * 2
-    sTwinkSpeed[i]= 0.2 + Math.random() * 0.9
-  }
-
-  const starGeo = new THREE.BufferGeometry()
-  starGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3))
-  starGeo.setAttribute('aSize',    new THREE.BufferAttribute(sSizes, 1))
-  starGeo.setAttribute('aBright',  new THREE.BufferAttribute(sBrightArr, 1))
-  const starMat = new THREE.ShaderMaterial({
-    vertexShader: starVS, fragmentShader: starFS,
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-  })
-  scene.add(new THREE.Points(starGeo, starMat))
-  const sBrightAttr = starGeo.attributes.aBright as THREE.BufferAttribute
-
-  // ── Hero stars (8 — prominent, diffraction-spiked) ────────────────────
-  const HERO_COUNT  = 8
-  const hPos        = new Float32Array(HERO_COUNT * 3)
-  const hSizes      = new Float32Array(HERO_COUNT)
-  const hBrightArr  = new Float32Array(HERO_COUNT)
-  const hTwinkPhase = new Float32Array(HERO_COUNT)
-  const hTwinkSpeed = new Float32Array(HERO_COUNT)
-
-  for (let i = 0; i < HERO_COUNT; i++) {
-    const phi   = Math.acos(2 * Math.random() - 1)
-    const theta = Math.random() * Math.PI * 2
-    const r     = 65 + Math.random() * 30
-    hPos[i*3]     = r * Math.sin(phi) * Math.cos(theta)
-    hPos[i*3+1]   = r * Math.sin(phi) * Math.sin(theta)
-    hPos[i*3+2]   = r * Math.cos(phi)
-    hSizes[i]     = 7.0 + Math.random() * 5.0   // bigger so spike reads clearly
-    hBrightArr[i] = 0.75 + Math.random() * 0.25
-    hTwinkPhase[i]= Math.random() * Math.PI * 2
-    hTwinkSpeed[i]= 0.15 + Math.random() * 0.35
-  }
-
-  const heroGeo = new THREE.BufferGeometry()
-  heroGeo.setAttribute('position', new THREE.BufferAttribute(hPos, 3))
-  heroGeo.setAttribute('aSize',    new THREE.BufferAttribute(hSizes, 1))
-  heroGeo.setAttribute('aBright',  new THREE.BufferAttribute(hBrightArr, 1))
-  const heroMat = new THREE.ShaderMaterial({
-    vertexShader: starVS, fragmentShader: heroFS,
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-  })
-  scene.add(new THREE.Points(heroGeo, heroMat))
-  const hBrightAttr = heroGeo.attributes.aBright as THREE.BufferAttribute
-
-  // ── Nebula clouds (4 semi-transparent canvas planes) ──────────────────
-  function makeNebulaTexture(blobs: {x:number;y:number;r:number;col:string}[]) {
+  // Cave rock texture — layered cracks on dark stone, drawn to a canvas so we avoid a texture file
+  function makeCaveTexture(): THREE.Texture {
     const S = 512
-    const nc = document.createElement('canvas')
-    nc.width = nc.height = S
-    const nx = nc.getContext('2d')!
-    nx.globalCompositeOperation = 'lighter'
-    for (const b of blobs) {
-      const g = nx.createRadialGradient(b.x*S, b.y*S, 0, b.x*S, b.y*S, b.r*S)
-      g.addColorStop(0, b.col)
-      g.addColorStop(1, 'rgba(0,0,0,0)')
-      nx.fillStyle = g
-      nx.fillRect(0, 0, S, S)
+    const gc = document.createElement('canvas')
+    gc.width = S; gc.height = S
+    const gx = gc.getContext('2d')!
+
+    // mid grey base — bright enough to contrast the glowing cracks
+    gx.fillStyle = '#2e2e36'
+    gx.fillRect(0, 0, S, S)
+
+    const mainCracks = [
+      [[0.08,0.12],[0.22,0.31],[0.18,0.55],[0.35,0.72],[0.42,0.90]],
+      [[0.55,0.05],[0.48,0.28],[0.62,0.44],[0.70,0.68],[0.60,0.88]],
+      [[0.75,0.15],[0.88,0.30],[0.80,0.50],[0.92,0.70],[0.85,0.95]],
+      [[0.0, 0.60],[0.15,0.65],[0.30,0.58],[0.50,0.63],[0.65,0.55],[1.0,0.60]],
+      [[0.20,0.02],[0.32,0.18],[0.45,0.12],[0.55,0.25],[0.68,0.10]],
+    ] as [number,number][][]
+
+    // wide glow halo, then a tight bright core on top
+    gx.shadowColor = '#9b3fff'
+    gx.shadowBlur  = 28
+    gx.strokeStyle = 'rgba(160, 90, 255, 0.7)'
+    gx.lineWidth   = 5
+    for (const path of mainCracks) {
+      gx.beginPath()
+      gx.moveTo(path[0][0]*S, path[0][1]*S)
+      for (let k = 1; k < path.length; k++) gx.lineTo(path[k][0]*S, path[k][1]*S)
+      gx.stroke()
     }
-    return new THREE.CanvasTexture(nc)
+
+    gx.shadowBlur  = 4
+    gx.strokeStyle = 'rgba(220, 170, 255, 0.95)'
+    gx.lineWidth   = 1.0
+    for (const path of mainCracks) {
+      gx.beginPath()
+      gx.moveTo(path[0][0]*S, path[0][1]*S)
+      for (let k = 1; k < path.length; k++) gx.lineTo(path[k][0]*S, path[k][1]*S)
+      gx.stroke()
+    }
+
+    // hairline cracks, dimmer so they don't compete with the main ones
+    const hairCracks = [
+      [[0.12,0.40],[0.28,0.47],[0.38,0.35]],
+      [[0.60,0.30],[0.72,0.22],[0.80,0.38]],
+      [[0.40,0.70],[0.52,0.78],[0.58,0.65]],
+      [[0.85,0.55],[0.90,0.68],[0.78,0.75]],
+    ] as [number,number][][]
+
+    gx.shadowColor = '#6b2fa8'
+    gx.shadowBlur  = 10
+    gx.strokeStyle = 'rgba(160, 100, 230, 0.45)'
+    gx.lineWidth   = 2
+    for (const path of hairCracks) {
+      gx.beginPath()
+      gx.moveTo(path[0][0]*S, path[0][1]*S)
+      for (let k = 1; k < path.length; k++) gx.lineTo(path[k][0]*S, path[k][1]*S)
+      gx.stroke()
+    }
+
+    gx.shadowBlur  = 0
+    gx.strokeStyle = 'rgba(200, 155, 255, 0.60)'
+    gx.lineWidth   = 0.7
+    for (const path of hairCracks) {
+      gx.beginPath()
+      gx.moveTo(path[0][0]*S, path[0][1]*S)
+      for (let k = 1; k < path.length; k++) gx.lineTo(path[k][0]*S, path[k][1]*S)
+      gx.stroke()
+    }
+
+    gx.shadowBlur = 0
+
+    // scattered ellipses to break up the flat base colour
+    for (let i = 0; i < 180; i++) {
+      const px = Math.random() * S
+      const py = Math.random() * S
+      const pr = 6 + Math.random() * 28
+      const dark = Math.random() > 0.5
+      const alpha = 0.06 + Math.random() * 0.14
+      gx.beginPath()
+      gx.ellipse(px, py, pr, pr * (0.4 + Math.random() * 0.8), Math.random() * Math.PI, 0, Math.PI*2)
+      gx.fillStyle = dark
+        ? `rgba(12, 8, 18, ${alpha})`
+        : `rgba(44, 32, 58, ${alpha})`
+      gx.fill()
+    }
+
+    // vignette to push edges into shadow
+    const vignette = gx.createRadialGradient(S/2, S/2, S*0.15, S/2, S/2, S*0.75)
+    vignette.addColorStop(0,   'rgba(30, 22, 40, 0.0)')
+    vignette.addColorStop(0.6, 'rgba(15, 8, 25, 0.3)')
+    vignette.addColorStop(1,   'rgba(5,  2, 10, 0.75)')
+    gx.fillStyle = vignette
+    gx.fillRect(0, 0, S, S)
+
+    const tex = new THREE.CanvasTexture(gc)
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+    tex.repeat.set(1.5, 1.5)
+    return tex
   }
 
-  const nebulaDefs = [
-    // Near-home: warm magenta/violet pillar
-    { pos: [-10, 5, -18] as [number,number,number],
-      size: [28, 18] as [number,number],
-      rot: [0.06, 0.22, 0.04] as [number,number,number],
-      blobs: [
-        { x:0.38, y:0.50, r:0.40, col:'rgba(155, 30, 200, 0.28)' },
-        { x:0.58, y:0.38, r:0.28, col:'rgba(210, 50, 180, 0.18)' },
-        { x:0.28, y:0.68, r:0.22, col:'rgba(100, 15, 170, 0.14)' },
-        { x:0.72, y:0.58, r:0.18, col:'rgba(240, 80, 220, 0.10)' },
-      ]},
-    // Mid: cool blue cloud, wide and faint
-    { pos: [13, -4, -45] as [number,number,number],
-      size: [38, 22] as [number,number],
-      rot: [-0.05, -0.16, 0.03] as [number,number,number],
-      blobs: [
-        { x:0.48, y:0.50, r:0.46, col:'rgba(30, 40, 210, 0.20)' },
-        { x:0.30, y:0.62, r:0.30, col:'rgba(60, 20, 180, 0.14)' },
-        { x:0.68, y:0.36, r:0.24, col:'rgba(80, 100, 240, 0.12)' },
-        { x:0.55, y:0.72, r:0.18, col:'rgba(20, 60, 200, 0.08)' },
-      ]},
-    // Deep: large purple/rose nebula spanning sections
-    { pos: [-5, 8, -80] as [number,number,number],
-      size: [55, 34] as [number,number],
-      rot: [0.03, 0.08, -0.02] as [number,number,number],
-      blobs: [
-        { x:0.42, y:0.48, r:0.48, col:'rgba(180, 25, 160, 0.18)' },
-        { x:0.64, y:0.35, r:0.32, col:'rgba(130, 10, 200, 0.14)' },
-        { x:0.26, y:0.65, r:0.35, col:'rgba(90,  20, 175, 0.12)' },
-        { x:0.76, y:0.60, r:0.20, col:'rgba(220, 60, 180, 0.09)' },
-        { x:0.50, y:0.78, r:0.22, col:'rgba(100, 15, 130, 0.08)' },
-      ]},
-    // Far: deep indigo pillar near contact
-    { pos: [9, -2, -130] as [number,number,number],
-      size: [60, 38] as [number,number],
-      rot: [0.01, 0.05, 0.01] as [number,number,number],
-      blobs: [
-        { x:0.44, y:0.50, r:0.50, col:'rgba(50, 15, 220, 0.14)' },
-        { x:0.62, y:0.44, r:0.36, col:'rgba(80, 30, 200, 0.10)' },
-        { x:0.28, y:0.60, r:0.30, col:'rgba(30, 10, 170, 0.09)' },
-        { x:0.70, y:0.68, r:0.22, col:'rgba(110, 50, 240, 0.07)' },
-      ]},
-    // Extra: rose halo near contact for drama
-    { pos: [-8, -4, -185] as [number,number,number],
-      size: [42, 26] as [number,number],
-      rot: [-0.02, -0.08, 0.02] as [number,number,number],
-      blobs: [
-        { x:0.50, y:0.50, r:0.45, col:'rgba(200, 40, 120, 0.16)' },
-        { x:0.36, y:0.40, r:0.28, col:'rgba(240, 60, 160, 0.11)' },
-        { x:0.66, y:0.62, r:0.24, col:'rgba(160, 20,  90, 0.10)' },
-      ]},
-  ]
+  const caveTex = makeCaveTexture()
 
-  const nebulaObjects: THREE.Mesh[] = []
-  for (const def of nebulaDefs) {
-    const tex  = makeNebulaTexture(def.blobs)
-    const mat  = new THREE.MeshBasicMaterial({
-      map: tex, transparent: true, opacity: 1,
-      depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  // needs MeshStandardMaterial so the platform point lights actually show on the walls
+  const wallMat = new THREE.MeshStandardMaterial({
+    map:        caveTex,
+    side:       THREE.BackSide,
+    color:      new THREE.Color(0x2e2e36),
+    roughness:  0.97,
+    metalness:  0.0,
+    envMapIntensity: 0,
+  })
+  const vaultShell = new THREE.Mesh(new THREE.BoxGeometry(160, 110, 190), wallMat)
+  vaultShell.position.set(0, 0, -65)
+  scene.add(vaultShell)
+
+
+  // placeholder groups — GLBs are loaded and added below once gltfLoader is ready
+  const platformHome = new THREE.Group()
+  platformHome.position.set(0, -2, -6)
+  scene.add(platformHome)
+
+  const galleryMain = new THREE.Group()
+  galleryMain.position.set(-17, -4, -60)
+  galleryMain.visible = false
+  scene.add(galleryMain)
+
+  const SLAB_SPACING = 3.5
+  const SLAB_BASE_X  = -17
+  let   slabScrollX  = SLAB_BASE_X
+
+  const slabGroup = new THREE.Group()
+  slabGroup.position.set(SLAB_BASE_X, -9, -44)
+  slabGroup.visible = false
+  scene.add(slabGroup)
+
+  // PlaneGeometry faces +Z by default, which is toward the camera — no rotation needed
+  const CARD_W = 2.0
+  const CARD_H = 2.9
+  const cardPlanes: THREE.Mesh[] = []
+  const texLoader = new THREE.TextureLoader()
+
+  for (let i = 0; i < content.work.projects.length; i++) {
+    const proj = content.work.projects[i]
+    const geo  = new THREE.PlaneGeometry(CARD_W, CARD_H)
+    const mat  = new THREE.MeshBasicMaterial({ color: 0xffffff })   // white tint = texture renders at true colour
+    const mesh = new THREE.Mesh(geo, mat)
+    mesh.position.set(i * SLAB_SPACING, 2.2, 0.0)
+    slabGroup.add(mesh)
+    cardPlanes.push(mesh)
+
+    texLoader.load(proj.image, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace
+      ;(mesh.material as THREE.MeshBasicMaterial).map = tex
+      ;(mesh.material as THREE.MeshBasicMaterial).needsUpdate = true
     })
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(def.size[0], def.size[1]), mat)
-    mesh.position.set(...def.pos)
-    mesh.rotation.set(...def.rot)
-    scene.add(mesh)
-    nebulaObjects.push(mesh)
   }
 
-  // ── Dust particles (200 tiny drifting specs) ──────────────────────────
-  const DUST_COUNT = 200
-  const dPos = new Float32Array(DUST_COUNT * 3)
-  const dVel = new Float32Array(DUST_COUNT * 3)
-
-  for (let i = 0; i < DUST_COUNT; i++) {
-    dPos[i*3]   = (Math.random() - 0.5) * 14
-    dPos[i*3+1] = (Math.random() - 0.5) * 9
-    dPos[i*3+2] = (Math.random() - 0.5) * 8 - 2
-    dVel[i*3]   = (Math.random() - 0.5) * 0.018
-    dVel[i*3+1] = (Math.random() - 0.5) * 0.012
-    dVel[i*3+2] = (Math.random() - 0.5) * 0.008
+  const raycaster  = new THREE.Raycaster()
+  const rayMouse   = new THREE.Vector2()
+  galleryBridge.raycast = (mx: number, my: number) => {
+    rayMouse.set((mx / window.innerWidth) * 2 - 1, -(my / window.innerHeight) * 2 + 1)
+    raycaster.setFromCamera(rayMouse, camera)
+    const hits = raycaster.intersectObjects(cardPlanes)
+    if (!hits.length) return -1
+    return cardPlanes.indexOf(hits[0].object as THREE.Mesh)
   }
 
-  const dustGeo  = new THREE.BufferGeometry()
-  dustGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3))
-  const dustMat  = new THREE.PointsMaterial({
-    size: 0.007, color: 0x99aadd, transparent: true, opacity: 0.22,
-    sizeAttenuation: true, blending: THREE.AdditiveBlending, depthWrite: false,
-  })
-  scene.add(new THREE.Points(dustGeo, dustMat))
-  const dustAttr = dustGeo.attributes.position as THREE.BufferAttribute
+  galleryBridge.getCardScreenPos = (idx: number) => {
+    if (idx < 0 || idx >= cardPlanes.length) return null
+    const wp = new THREE.Vector3()
+    cardPlanes[idx].getWorldPosition(wp)
+    wp.project(camera)
+    const cx = (wp.x + 1) / 2 * window.innerWidth
+    // project top and bottom edges to derive screen height (simpler than using FOV math)
+    const top = new THREE.Vector3(0,  CARD_H / 2, 0).applyMatrix4(cardPlanes[idx].matrixWorld).project(camera)
+    const bot = new THREE.Vector3(0, -CARD_H / 2, 0).applyMatrix4(cardPlanes[idx].matrixWorld).project(camera)
+    const screenTop = (-top.y + 1) / 2 * window.innerHeight
+    const screenBot = (-bot.y + 1) / 2 * window.innerHeight
+    const height = screenBot - screenTop
+    const width  = height * (CARD_W / CARD_H)
+    return { left: cx - width / 2, top: screenTop, width, height }
+  }
 
-  // ── Debris: crystal fragments between sections ────────────────────────
-  const debrisMat = new THREE.MeshStandardMaterial({
-    color: 0x090610, roughness: 0.1, metalness: 0.95,
-    transparent: true, opacity: 0.9,
-  })
-  const debrisLight1 = new THREE.PointLight(0x7b3fe8, 1.2, 8)
-  debrisLight1.position.set(-4, 2, -40)
-  scene.add(debrisLight1)
-  const debrisLight2 = new THREE.PointLight(0x4b2fdd, 0.8, 8)
-  debrisLight2.position.set(4, -2, -120)
-  scene.add(debrisLight2)
-  const debrisLight3 = new THREE.PointLight(0x6b3fe7, 0.8, 8)
-  debrisLight3.position.set(-3, 1, -200)
-  scene.add(debrisLight3)
+  const platformAbout = new THREE.Group()
+  platformAbout.position.set(8, 3, -87)
+  platformAbout.rotation.y = -0.5
+  scene.add(platformAbout)
 
+  const platformContact = new THREE.Group()
+  platformContact.position.set(-2, -1, -130)
+  scene.add(platformContact)
+
+  // two lights per platform: warm main from above that lerps in on proximity, and a always-dim purple rim
+  const platLightPos: [number,number,number][] = [
+    [  0,   2,   -6 ],
+    [-17,  -6,  -44 ],   // centred on slab group
+    [  8,   7,  -87 ],
+    [ -2,   2, -130 ],
+  ]
+  const platformLights: THREE.PointLight[] = []
+  const platformRimLights: THREE.PointLight[] = []
+
+  for (let i = 0; i < 4; i++) {
+    const [px, py, pz] = platLightPos[i]
+
+    // home starts fully lit; others start at 0 and lerp in as the camera gets close
+    const initIntensity = i === 0 ? 7.0 : 0.0
+    const main = new THREE.PointLight(0xe8e0ff, initIntensity, 55)
+    main.position.set(px, py + 4, pz)   // +4 keeps it tight to the model — +8 was too far and lost intensity
+    scene.add(main)
+    platformLights.push(main)
+
+    const rim = new THREE.PointLight(0x8840d0, 0.5, 30)
+    rim.position.set(px, py - 1, pz + 2)
+    scene.add(rim)
+    platformRimLights.push(rim)
+  }
+
+  const debrisMat = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.97, metalness: 0.02 })
   type DebrisPiece = { mesh: THREE.Mesh; rv: THREE.Vector3 }
   const debrisPieces: DebrisPiece[] = []
 
-  // 12 pieces per gap, 3 gaps
-  const gapZRanges = [[-15, -65], [-95, -145], [-175, -225]] as [number,number][]
-  for (const [zMin, zMax] of gapZRanges) {
-    for (let i = 0; i < 12; i++) {
-      const size = 0.04 + Math.random() * 0.18
-      const geo  = new THREE.OctahedronGeometry(size, 0)
-      const mesh = new THREE.Mesh(geo, debrisMat.clone())
-      mesh.position.set(
-        (Math.random() - 0.5) * 16,
-        (Math.random() - 0.5) * 8,
-        zMin + Math.random() * (zMax - zMin),
-      )
-      mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI)
-      const rv = new THREE.Vector3(
-        (Math.random()-0.5)*0.8,
-        (Math.random()-0.5)*0.8,
-        (Math.random()-0.5)*0.4,
-      )
-      scene.add(mesh)
-      debrisPieces.push({ mesh, rv })
-    }
+  for (const [x, y, z, w, h, d] of [
+    [ -6,   1,  -15,  1.2, 0.15, 0.6  ],
+    [  4,  -3,  -21,  0.4, 0.4,  0.4  ],
+    [-10,  -2,  -23,  1.8, 0.08, 0.9  ],
+    [  8,   3,  -30,  0.2, 1.0,  0.18 ],
+    [ -2,   5,  -17,  0.9, 0.12, 0.5  ],
+    [  6,  -4,  -48,  1.4, 0.1,  0.7  ],
+    [ -8,   6,  -55,  0.5, 0.5,  0.5  ],
+    [ 14,  -1,  -51,  2.0, 0.08, 1.0  ],
+    [ -4,   3,  -59,  0.18,0.9,  0.18 ],
+    [  2,   4,  -65,  0.7, 0.1,  0.35 ],
+    [  8,  -3,  -92,  1.1, 0.12, 0.6  ],
+    [-13,   7,  -89,  0.45,0.45, 0.45 ],
+    [  2,   6,  -98,  1.6, 0.08, 0.8  ],
+    [ -7,  -5,  -95,  0.2, 0.8,  0.2  ],
+    [ 10,   2, -102,  0.9, 0.1,  0.5  ],
+    [  4,  -6,  -36,  1.0, 0.14, 0.55 ],
+    [-10,   2,  -77,  0.35,0.35, 0.35 ],
+    [ 15,   4, -110,  0.6, 0.1,  0.3  ],
+  ] as [number,number,number,number,number,number][]) {
+    const geo  = new THREE.BoxGeometry(w, h, d)
+    const mesh = new THREE.Mesh(geo, debrisMat.clone())
+    mesh.position.set(x, y, z)
+    mesh.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI)
+    const edgeOpacity = 0.12 + Math.random() * 0.10
+    const edgeColor   = [0x2a2a2e, 0x222224, 0x1e1e20][Math.floor(Math.random() * 3)]
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geo),
+      new THREE.LineBasicMaterial({ color: edgeColor, transparent: true, opacity: edgeOpacity }),
+    )
+    mesh.add(edges)
+    const rv = new THREE.Vector3(
+      (Math.random()-0.5)*0.25,
+      (Math.random()-0.5)*0.2,
+      (Math.random()-0.5)*0.15,
+    )
+    scene.add(mesh)
+    debrisPieces.push({ mesh, rv })
   }
 
-  // ── Camera fly state ─────────────────────────────────────────────────
-  let camZ          = 6
-  let camYaw        = 0      // camera Y rotation (sweeps during flight)
-  let flyFromZ      = 6
-  let flyToZ        = 6
+  let camPos    = new THREE.Vector3(0, 0, 6)
+  let camTarget = new THREE.Vector3(0, 0, -2)
+  let camBank   = 0   // smoothed roll during flight
+
+  let flyFromPos    = new THREE.Vector3()
+  let flyFromTarget = new THREE.Vector3()
+  let flyToPos      = new THREE.Vector3()
+  let flyToTarget   = new THREE.Vector3()
+  let flyCtrlPos    = new THREE.Vector3()   // quadratic bezier control point
   let flyStartTime  = -1
   let flyDuration   = 0
-  let prevSectionIdx = 0
 
-  // Shard target world positions (set per section, lerped during flight)
-  let shardTargetPos  = new THREE.Vector3(1.8, 0.1, 0)
-  let shardTargetScale = 1.0
-  let babyTargetPos   = new THREE.Vector3(2.8, -0.5, 0)
-  let shardCurrentPos = new THREE.Vector3(1.8, 0.1, 0)
+  let shardTargetPos   = new THREE.Vector3(...SECTIONS[0].shardWorld)
+  let shardTargetScale = SECTIONS[0].shardScale
+  let babyTargetPos    = new THREE.Vector3(...SECTIONS[0].babyWorld)
+  let shardCurrentPos  = new THREE.Vector3(...SECTIONS[0].shardWorld)
   let shardCurrentScale = 1.0
-  let babyCurrentPos  = new THREE.Vector3(2.8, -0.5, 0)
+  let babyCurrentPos   = new THREE.Vector3(...SECTIONS[0].babyWorld)
 
-  function sectionWorldPos(idx: number, local: [number,number,number]): THREE.Vector3 {
-    const s = SECTIONS[idx]
-    return new THREE.Vector3(local[0], local[1], s.sectionZ + local[2])
+  // quadratic bezier — used for camera path so it arcs rather than cutting straight through geometry
+  function quadBezier(
+    t: number,
+    p0: THREE.Vector3, p1: THREE.Vector3, p2: THREE.Vector3,
+    out: THREE.Vector3,
+  ) {
+    const mt = 1 - t
+    out.set(
+      mt*mt*p0.x + 2*mt*t*p1.x + t*t*p2.x,
+      mt*mt*p0.y + 2*mt*t*p1.y + t*t*p2.y,
+      mt*mt*p0.z + 2*mt*t*p1.z + t*t*p2.z,
+    )
   }
 
   function startFly(toIdx: number) {
-    const from = SECTIONS[prevSectionIdx]
-    const to   = SECTIONS[toIdx]
-    flyFromZ    = camZ
-    flyToZ      = to.cameraZ
-    const dist  = Math.abs(flyToZ - flyFromZ)
-    flyDuration = Math.min(2.5, Math.max(1.4, dist / 60))
+    const to = SECTIONS[toIdx]
+    flyFromPos.copy(camPos)
+    flyFromTarget.copy(camTarget)
+    flyToPos.set(...to.cameraPos)
+    flyToTarget.set(...to.lookAt)
+
+    // bend the control point perpendicular to the path + push it up slightly for a natural arc
+    const mid  = flyFromPos.clone().add(flyToPos).multiplyScalar(0.5)
+    const dir  = flyToPos.clone().sub(flyFromPos).normalize()
+    const up   = new THREE.Vector3(0, 1, 0)
+    const perp = new THREE.Vector3().crossVectors(dir, up).normalize()
+    const arcLen = flyFromPos.distanceTo(flyToPos)
+    flyCtrlPos.copy(mid)
+      .addScaledVector(perp, arcLen * 0.18)
+      .addScaledVector(up,   arcLen * 0.10)
+
+    flyDuration  = Math.min(2.0, Math.max(1.0, arcLen / 55))
     flyStartTime = clock
-    shardTargetPos   = sectionWorldPos(toIdx, to.shardLocal)
+
+    shardTargetPos.set(...to.shardWorld)
     shardTargetScale = to.shardScale
-    babyTargetPos    = sectionWorldPos(toIdx, to.babyLocal)
-    prevSectionIdx   = toIdx
+    babyTargetPos.set(...to.babyWorld)
   }
 
-  // Watch spaceNav.currentIndex for fly trigger
   let watchedIdx = spaceNav.currentIndex
 
-  // ── Scroll navigation ────────────────────────────────────────────────
-  let scrollLock = false
-  const onWheel = (e: WheelEvent) => {
+  let scrollLock     = false
+  let postArrivalTimer = 0
+
+  function doNavigate(dir: 1 | -1) {
     if (scrollLock) return
-    const dir  = e.deltaY > 0 ? 1 : -1
     const next = Math.max(0, Math.min(SECTIONS.length - 1, spaceNav.currentIndex + dir))
     if (next === spaceNav.currentIndex) return
-    scrollLock = true   // unlocked in onArrived → spaceNav watch below
+    scrollLock = true
     spaceNav.navigateTo(next)
     router.push(SECTIONS[next].path)
   }
+
+  galleryBridge.navigateSection = doNavigate
+
+  // separate accumulator so this doesn't interfere with WorkView's own card scroll handling
+  let sectionDelta    = 0
+  let sectionIdleTimer = 0
+
+  const onWheel = (e: WheelEvent) => {
+    // WorkView handles its own wheel on the work section
+    if (spaceNav.currentIndex === 1) return
+    if (scrollLock) return
+
+    sectionDelta += e.deltaY
+    clearTimeout(sectionIdleTimer)
+    sectionIdleTimer = window.setTimeout(() => { sectionDelta = 0 }, 600)
+
+    if (Math.abs(sectionDelta) < 250) return
+    const dir = sectionDelta > 0 ? 1 : -1
+    sectionDelta = 0
+    doNavigate(dir)
+  }
   window.addEventListener('wheel', onWheel, { passive: true })
 
-  // ── Keyboard navigation ───────────────────────────────────────────────
   const onKey = (e: KeyboardEvent) => {
     let next = spaceNav.currentIndex
     if      (e.key === 'ArrowDown' || e.key === 'PageDown') next = Math.min(SECTIONS.length - 1, next + 1)
@@ -372,9 +422,8 @@ onMounted(() => {
   }
   window.addEventListener('keydown', onKey)
 
-  // ── Phase state ───────────────────────────────────────────────────────
   type Phase = 'waiting' | 'phase1' | 'phase2' | 'phase3' | 'done'
-  let phase: Phase = 'waiting'   // waits for main GLB before cross starts
+  let phase: Phase = 'waiting'   // stays here until the main shard GLB loads
 
   const MIN_PHASE1 = 2.0
   const DUR_PHASE2 = 0.8
@@ -388,9 +437,8 @@ onMounted(() => {
   let lastMs    = performance.now()
   let phaseStart = 0
   let doneStart  = 0
-  let phase1Start = 0            // when phase1 actually began
+  let phase1Start = 0
 
-  // ── Project world → screen ────────────────────────────────────────────
   function toScreen(wx: number, wy: number, wz: number) {
     const v = new THREE.Vector3(wx, wy, wz).project(camera)
     return {
@@ -399,13 +447,12 @@ onMounted(() => {
     }
   }
 
-  // Separate x/y radii so diamond matches actual shard silhouette
+  // separate x/y radii — the shard isn't square, so the diamond needs non-uniform extents
   let crossRX  = 0.75
   let crossRY  = 0.75
-  let flashT   = -1      // -1 = inactive, 0→1 = explosion playing
-  let flashDelay = -1    // clock time when flash was armed; -1 = not armed
+  let flashT   = -1      // -1 = inactive, 0→1 = playing
+  let flashDelay = -1    // clock time the flash was armed at; -1 = not armed
 
-  // ── Explosion particles (2D canvas) ──────────────────────────────────────
   const EXP_COUNT = 55
   type ExpParticle = { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; r: number }
   const expParticles: ExpParticle[] = []
@@ -428,7 +475,6 @@ onMounted(() => {
     }
   }
 
-  // ── Shard helpers ─────────────────────────────────────────────────────
   let mainShard: THREE.Object3D | null = null
   let babyShard: THREE.Object3D | null = null
   const mainMats: THREE.Material[] = []
@@ -447,8 +493,7 @@ onMounted(() => {
     mats.forEach(m => { m.transparent = true; m.opacity = val })
   }
 
-  let mainBaseScale = 1.0   // the scale set by normalizeModel — used as multiplier baseline
-  let babyBaseScale = 1.0
+  let mainBaseScale = 1.0   // captured from normalizeModel so we can apply section scale on top
 
   function normalizeModel(obj: THREE.Object3D, targetSize: number): number {
     const box  = new THREE.Box3().setFromObject(obj)
@@ -462,13 +507,178 @@ onMounted(() => {
     return s
   }
 
-  const FINAL_MAIN_POS = new THREE.Vector3(1.8, 0.1, 0)
+  const FINAL_MAIN_POS = new THREE.Vector3(0.0, 0.4, -5)
   const FINAL_MAIN_ROT = { x: 0.1, y: 0, z: 0.15 }
-  const FINAL_BABY_POS = new THREE.Vector3(2.8, -0.5, -0.3)
+  const FINAL_BABY_POS = new THREE.Vector3(2.8, -0.3, -4.5)
   const FINAL_BABY_ROT = { x: -0.1, y: 0.3, z: 0.2 }
 
-  // ── GLB loading ───────────────────────────────────────────────────────
   const gltfLoader = new GLTFLoader()
+
+  gltfLoader.load('/3d/thealter.glb', (gltf) => {
+    const altar = gltf.scene
+
+    const box  = new THREE.Box3().setFromObject(altar)
+    const size = new THREE.Vector3()
+    box.getSize(size)
+    const ctr  = new THREE.Vector3()
+    box.getCenter(ctr)
+    const s = 14 / Math.max(size.x, size.y, size.z)
+    altar.scale.setScalar(s)
+    altar.position.sub(ctr.multiplyScalar(s))
+    altar.position.y = 0
+
+    // override Blender materials so everything fits the vault colour palette
+    altar.traverse(child => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        const replace = new THREE.MeshStandardMaterial({
+          color:              0x28282c,
+          roughness:          0.94,
+          metalness:          0.06,
+          emissive:           new THREE.Color(0x100818),
+          emissiveIntensity:  0.08,
+        })
+        mesh.material = Array.isArray(mesh.material)
+          ? mesh.material.map(() => replace.clone())
+          : replace
+      }
+    })
+
+    platformHome.add(altar)
+  })
+
+  gltfLoader.load('/3d/GaleryMain.glb', (gltf) => {
+    const wall = gltf.scene
+
+    const box = new THREE.Box3().setFromObject(wall)
+    const ctr = new THREE.Vector3()
+    box.getCenter(ctr)
+    const size = new THREE.Vector3()
+    box.getSize(size)
+    const s = 26 / Math.max(size.x, size.y, size.z)
+    wall.scale.setScalar(s)
+    wall.position.sub(ctr.multiplyScalar(s))
+
+    wall.traverse(child => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        const mat = new THREE.MeshStandardMaterial({
+          color:             0x484650,
+          roughness:         0.92,
+          metalness:         0.04,
+          emissive:          new THREE.Color(0x0e0820),
+          emissiveIntensity: 0.10,
+        })
+        mesh.material = Array.isArray(mesh.material)
+          ? mesh.material.map(() => mat.clone())
+          : mat
+      }
+    })
+
+    galleryMain.add(wall)
+  })
+
+  gltfLoader.load('/3d/GaleryPlatform.glb', (gltf) => {
+    const template = gltf.scene
+
+    const box = new THREE.Box3().setFromObject(template)
+    const size = new THREE.Vector3()
+    box.getSize(size)
+    const ctr = new THREE.Vector3()
+    box.getCenter(ctr)
+    const s = 2.8 / Math.max(size.x, size.y, size.z)
+    template.scale.setScalar(s)
+    template.position.sub(ctr.multiplyScalar(s))
+    template.position.y = 0
+
+    const N = content.work.projects.length
+    for (let i = 0; i < N; i++) {
+      const slab = template.clone(true)
+      slab.position.set(i * SLAB_SPACING, 0, 0)
+
+      slab.traverse(child => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh
+          const mat = new THREE.MeshStandardMaterial({
+            color:             0x303038,
+            roughness:         0.93,
+            metalness:         0.04,
+            emissive:          new THREE.Color(0x0c0820),
+            emissiveIntensity: 0.10,
+          })
+          mesh.material = Array.isArray(mesh.material)
+            ? mesh.material.map(() => mat.clone())
+            : mat
+        }
+      })
+
+      slabGroup.add(slab)
+    }
+  })
+
+  gltfLoader.load('/3d/thearchive.glb', (gltf) => {
+    const archive = gltf.scene
+
+    const box  = new THREE.Box3().setFromObject(archive)
+    const size = new THREE.Vector3()
+    box.getSize(size)
+    const ctr  = new THREE.Vector3()
+    box.getCenter(ctr)
+    const s = 14 / Math.max(size.x, size.y, size.z)
+    archive.scale.setScalar(s)
+    archive.position.sub(ctr.multiplyScalar(s))
+    archive.position.y = 0
+
+    archive.traverse(child => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        const replace = new THREE.MeshStandardMaterial({
+          color:             0x1a1a1c,
+          roughness:         0.95,
+          metalness:         0.02,
+          emissive:          new THREE.Color(0x000000),
+          emissiveIntensity: 0.0,
+        })
+        mesh.material = Array.isArray(mesh.material)
+          ? mesh.material.map(() => replace.clone())
+          : replace
+      }
+    })
+
+    platformAbout.add(archive)
+  })
+
+  gltfLoader.load('/3d/Themonolith.glb', (gltf) => {
+    const monolith = gltf.scene
+
+    const box  = new THREE.Box3().setFromObject(monolith)
+    const size = new THREE.Vector3()
+    box.getSize(size)
+    const ctr  = new THREE.Vector3()
+    box.getCenter(ctr)
+    const s = 14 / Math.max(size.x, size.y, size.z)
+    monolith.scale.setScalar(s)
+    monolith.position.sub(ctr.multiplyScalar(s))
+    monolith.position.y = 0
+
+    monolith.traverse(child => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        const replace = new THREE.MeshStandardMaterial({
+          color:             0x1a1a1c,
+          roughness:         0.95,
+          metalness:         0.02,
+          emissive:          new THREE.Color(0x000000),
+          emissiveIntensity: 0.0,
+        })
+        mesh.material = Array.isArray(mesh.material)
+          ? mesh.material.map(() => replace.clone())
+          : replace
+      }
+    })
+
+    platformContact.add(monolith)
+  })
 
   function onProgress(e: ProgressEvent) {
     if (e.total > 0) {
@@ -478,9 +688,9 @@ onMounted(() => {
 
   gltfLoader.load('/3d/Shard.glb', (gltf) => {
     mainShard = gltf.scene
-    mainBaseScale = normalizeModel(mainShard, 1.6)
+    mainBaseScale = normalizeModel(mainShard, 2.2)
 
-    // Separate x/y so the diamond silhouette matches the actual shard
+    // measure the loaded mesh so crossRX/Y match the real silhouette, not a guess
     const box  = new THREE.Box3().setFromObject(mainShard)
     const size = new THREE.Vector3()
     box.getSize(size)
@@ -496,7 +706,7 @@ onMounted(() => {
     assetsLoaded++
     loadFraction = assetsLoaded / 2
 
-    // Start phase1 only now — crossRX/Y are correct, no glitch
+    // start phase1 here, not earlier — crossRX/Y must be set from the real mesh first
     if (phase === 'waiting') {
       phase = 'phase1'
       phase1Start = clock
@@ -505,7 +715,7 @@ onMounted(() => {
 
   gltfLoader.load('/3d/BabyShard.glb', (gltf) => {
     babyShard = gltf.scene
-    babyBaseScale = normalizeModel(babyShard, 0.6)
+    normalizeModel(babyShard, 0.6)
     babyShard.position.copy(FINAL_BABY_POS)
     babyShard.rotation.set(FINAL_BABY_ROT.x, FINAL_BABY_ROT.y, FINAL_BABY_ROT.z)
     extractMats(babyShard, babyMats)
@@ -516,14 +726,13 @@ onMounted(() => {
     loadFraction = assetsLoaded / 2
   }, onProgress)
 
-  // ── Particles ─────────────────────────────────────────────────────────
-  const COUNT = 80
-  const pAngles = new Float32Array(COUNT)
-  const pRadii  = new Float32Array(COUNT)
-  const pInc    = new Float32Array(COUNT)
-  const pSpeed  = new Float32Array(COUNT)
-  const pCX     = new Float32Array(COUNT)
-  const pCY     = new Float32Array(COUNT)
+  const COUNT   = 112
+  // each particle orbits on its own tilted circle — theta/phi define the tilt axis
+  const pAngles = new Float32Array(COUNT)   // current angle around its axis
+  const pRadii  = new Float32Array(COUNT)   // orbit radius
+  const pSpeed  = new Float32Array(COUNT)   // angular speed
+  const pTheta  = new Float32Array(COUNT)   // axis polar angle (0..π)
+  const pPhi    = new Float32Array(COUNT)   // axis azimuth angle (0..2π)
   const pPos    = new Float32Array(COUNT * 3)
   const pCol    = new Float32Array(COUNT * 3)
   const colA    = new THREE.Color(0x7b2fbe)
@@ -531,11 +740,10 @@ onMounted(() => {
 
   for (let i = 0; i < COUNT; i++) {
     pAngles[i] = Math.random() * Math.PI * 2
-    pRadii[i]  = 0.5 + Math.random() * 0.55
-    pInc[i]    = (Math.random() - 0.5) * Math.PI
-    pSpeed[i]  = 0.08 + Math.random() * 0.14
-    pCX[i]     = Math.random() < 0.6 ? 1.8 : 2.8
-    pCY[i]     = pCX[i] < 2.0 ? 0.1 : -0.5
+    pRadii[i]  = 0.45 + Math.random() * 0.65
+    pSpeed[i]  = 0.06 + Math.random() * 0.16
+    pTheta[i]  = Math.acos(2 * Math.random() - 1)  // acos trick for uniform sphere distribution
+    pPhi[i]    = Math.random() * Math.PI * 2
     const c    = colA.clone().lerp(colB, Math.random())
     pCol[i*3]  = c.r; pCol[i*3+1] = c.g; pCol[i*3+2] = c.b
   }
@@ -546,28 +754,23 @@ onMounted(() => {
   const pMat = new THREE.PointsMaterial({
     size: 0.022, vertexColors: true, transparent: true, opacity: 0,
     sizeAttenuation: true, blending: THREE.AdditiveBlending,
-    depthWrite: false, depthTest: false,  // always render above shards
+    depthWrite: false, depthTest: false,  // skip depth so particles always render on top of the shard
   })
   scene.add(new THREE.Points(pGeo, pMat))
   const posAttr = pGeo.attributes.position as THREE.BufferAttribute
 
-  // ── Cross drawing ─────────────────────────────────────────────────────
-  // fillProgress 0→1: how far each line extends from its start
-  // morphT 0→1: cross (+) → diamond (◇)
-  // alpha: overall canvas opacity
+  // fillProgress 0→1 drives how far each line extends; morphT shifts the shape from cross to diamond
   function drawCross(fillProgress: number, morphT: number, alpha: number) {
     ctx.clearRect(0, 0, ov.width, ov.height)
 
     const cx = window.innerWidth  / 2
     const cy = window.innerHeight / 2
 
-    // ── Dark background during loading ───────────────────────────────────
     if (alpha > 0.01) {
       ctx.fillStyle = `rgba(2, 3, 8, ${alpha * 0.96})`
       ctx.fillRect(0, 0, ov.width, ov.height)
     }
 
-    // ── Energy explosion when shard reveals ──────────────────────────────
     if (flashT >= 0 && flashT < 1) {
       const r    = flashT * Math.max(window.innerWidth, window.innerHeight) * 0.75
       const fa   = Math.pow(1 - flashT, 1.8) * 0.7
@@ -579,7 +782,6 @@ onMounted(() => {
       ctx.fillRect(0, 0, ov.width, ov.height)
     }
 
-    // ── Explosion particles ───────────────────────────────────────────────
     for (const p of expParticles) {
       if (p.life >= p.maxLife) continue
       const a = 1 - p.life / p.maxLife
@@ -621,7 +823,7 @@ onMounted(() => {
       const ex  = x1 + (x2 - x1) * fillProgress
       const ey  = y1 + (y2 - y1) * fillProgress
 
-      // Glow halo
+      // three passes: wide glow halo → coloured core → bright specular thread
       ctx.beginPath()
       ctx.moveTo(x1, y1)
       ctx.lineTo(ex, ey)
@@ -631,7 +833,6 @@ onMounted(() => {
       ctx.shadowBlur  = 14
       ctx.stroke()
 
-      // Core thread
       ctx.beginPath()
       ctx.moveTo(x1, y1)
       ctx.lineTo(ex, ey)
@@ -640,7 +841,6 @@ onMounted(() => {
       ctx.shadowBlur  = 6
       ctx.stroke()
 
-      // Bright centre spark
       ctx.beginPath()
       ctx.moveTo(x1, y1)
       ctx.lineTo(ex, ey)
@@ -650,7 +850,7 @@ onMounted(() => {
       ctx.stroke()
     }
 
-    // Tip dots when lines are full
+    // small dots at the tips once the lines finish drawing
     if (fillProgress > 0.97 && morphT < 0.25) {
       ctx.shadowColor = '#a855f7'
       ctx.shadowBlur  = 12
@@ -662,7 +862,6 @@ onMounted(() => {
       }
     }
 
-    // ── "LOADING" label ───────────────────────────────────────────────────
     if (morphT < 0.05) {
       const pulse = 0.45 + 0.55 * Math.sin(clock * 2.5)
       ctx.globalAlpha = alpha * pulse
@@ -678,7 +877,6 @@ onMounted(() => {
     ctx.restore()
   }
 
-  // ── Mouse ─────────────────────────────────────────────────────────────
   let rawMX = 0, rawMY = 0, smMX = 0, smMY = 0
   const mouseNDC = new THREE.Vector2(9999, 9999)
 
@@ -690,7 +888,6 @@ onMounted(() => {
   }
   window.addEventListener('mousemove', onMove)
 
-  // ── Click to skip ─────────────────────────────────────────────────────
   function skipToEnd() {
     if (phase === 'done') return
     phase = 'done'
@@ -701,7 +898,7 @@ onMounted(() => {
       setOpacity(mainMats, 1)
     }
     if (babyShard) setOpacity(babyMats, 1)
-    pMat.opacity = 0   // let done phase lerp it in smoothly
+    pMat.opacity = 0   // done phase will lerp this in
     doneStart = clock
     shardCurrentPos.copy(FINAL_MAIN_POS)
     babyCurrentPos.copy(FINAL_BABY_POS)
@@ -714,7 +911,6 @@ onMounted(() => {
   }
   window.addEventListener('click', skipToEnd)
 
-  // ── Resize ────────────────────────────────────────────────────────────
   const onResize = () => {
     if (!renderer) return
     camera.aspect = window.innerWidth / window.innerHeight
@@ -725,7 +921,6 @@ onMounted(() => {
   }
   window.addEventListener('resize', onResize)
 
-  // ── Continuous rotation accumulators ─────────────────────────────────
   let mainRotY = 0
   let babyRotY = FINAL_BABY_ROT.y
 
@@ -734,7 +929,6 @@ onMounted(() => {
   const FLOAT_CYCLE = 4
   const MAX_TILT    = Math.PI / 36
 
-  // ── RAF ───────────────────────────────────────────────────────────────
   const tick = () => {
     rafId = requestAnimationFrame(tick)
 
@@ -746,14 +940,13 @@ onMounted(() => {
     smMX += (rawMX - smMX) * 0.06
     smMY += (rawMY - smMY) * 0.06
 
-    // Arm → delay → fire explosion
+    // flash is armed first, then fires after a short delay so it lands mid-reveal
     if (flashDelay >= 0 && flashT < 0 && clock - flashDelay >= 0.5) {
       flashT = 0
       spawnExplosion()
     }
     if (flashT >= 0) {
       flashT = Math.min(1, flashT + delta / 0.9)
-      // Advance explosion particles
       for (const p of expParticles) {
         if (p.life >= p.maxLife) continue
         p.life += delta
@@ -766,9 +959,8 @@ onMounted(() => {
     const tiltX = smMY * MAX_TILT
     const tiltZ = -smMX * MAX_TILT * 0.4
 
-    // ── Waiting: GLB not yet loaded ───────────────────────────────────
     if (phase === 'waiting') {
-      // Show a pulsing center dot while waiting
+      // pulsing dot while the GLB loads
       ctx.clearRect(0, 0, ov.width, ov.height)
       ctx.fillStyle = `rgba(4, 5, 12, 0.82)`
       ctx.fillRect(0, 0, ov.width, ov.height)
@@ -781,7 +973,6 @@ onMounted(() => {
       ctx.fill()
     }
 
-    // ── Phase 1: cross fills ──────────────────────────────────────────
     else if (phase === 'phase1') {
       const allLoaded  = assetsLoaded >= 2
       const elapsed    = clock - phase1Start
@@ -805,12 +996,11 @@ onMounted(() => {
       }
     }
 
-    // ── Phase 2: cross morphs → diamond, shard fades in ──────────────
     else if (phase === 'phase2') {
       const t     = Math.min(1, (clock - phaseStart) / DUR_PHASE2)
       const eased = t < 0.5 ? 2*t*t : -1 + (4 - 2*t) * t
 
-      // Cross fades fully out during last 0.5s of phase2
+      // cross fades out over the last 0.5s while the shard is already fading in
       const fadeStart = Math.max(0, DUR_PHASE2 - 0.5)
       const crossAlpha = (clock - phaseStart) < fadeStart
         ? 1 - eased * 0.3
@@ -824,25 +1014,24 @@ onMounted(() => {
       }
     }
 
-    // ── Phase 3: shard moves to final position ────────────────────────
     else if (phase === 'phase3') {
       const t     = Math.min(1, (clock - phaseStart) / DUR_PHASE3)
       const eased = 1 - Math.pow(1 - t, 3)
 
-      // Cross is already gone — just keep drawing explosion particles
+      // alpha=0 so no background or lines, but explosion particles still render
       drawCross(1, 1, 0)
 
       if (mainShard) {
         mainShard.position.lerpVectors(new THREE.Vector3(0, 0, 0), FINAL_MAIN_POS, eased)
         mainShard.rotation.x = FINAL_MAIN_ROT.x * eased
-        mainShard.rotation.y = Math.PI * 0.6 * eased   // rotates in as it travels
+        mainShard.rotation.y = Math.PI * 0.6 * eased   // spins in during travel so it arrives facing forward
         mainShard.rotation.z = FINAL_MAIN_ROT.z * eased
         setOpacity(mainMats, 1)
       }
 
       const babyT = Math.max(0, (t - 0.55) / 0.45)
       if (babyShard) setOpacity(babyMats, babyT)
-      // Keep particles hidden during phase3 — they appear after shard settles
+      // hold particles at 0 — letting them fade in during travel looks wrong
       pMat.opacity = 0
 
       if (t >= 1) {
@@ -850,7 +1039,6 @@ onMounted(() => {
         doneStart = clock
         mainRotY  = mainShard?.rotation.y ?? 0
         babyRotY  = FINAL_BABY_ROT.y
-        // Sync shard current positions to home section defaults
         shardCurrentPos.copy(FINAL_MAIN_POS)
         babyCurrentPos.copy(FINAL_BABY_POS)
         shardTargetPos.copy(FINAL_MAIN_POS)
@@ -863,81 +1051,118 @@ onMounted(() => {
       }
     }
 
-    // ── Done: normal scene loop ───────────────────────────────────────
     else {
-      // Check if spaceNav triggered a new fly
       if (spaceNav.currentIndex !== watchedIdx) {
         startFly(spaceNav.currentIndex)
         watchedIdx = spaceNav.currentIndex
       }
 
-      // ── Camera fly ─────────────────────────────────────────────────
       let flyT = 1
-      if (flyStartTime >= 0 && clock - flyStartTime < flyDuration) {
-        const raw  = (clock - flyStartTime) / flyDuration
-        flyT = raw < 0.5 ? 2*raw*raw : -1+(4-2*raw)*raw  // ease in-out
-      } else if (flyStartTime >= 0) {
+      const isFlying3D = flyStartTime >= 0
+
+      if (isFlying3D && clock - flyStartTime < flyDuration) {
+        const raw = (clock - flyStartTime) / flyDuration
+        flyT = raw < 0.5 ? 2*raw*raw : -1+(4-2*raw)*raw  // smoothstep-ish ease in-out
+      } else if (isFlying3D) {
         flyT = 1
         flyStartTime = -1
-        camZ = flyToZ
+        camPos.copy(flyToPos)
+        camTarget.copy(flyToTarget)
         spaceNav.onArrived()
-        scrollLock = false   // allow next scroll only after camera lands
+        sectionDelta = 0
+        clearTimeout(postArrivalTimer)
+        postArrivalTimer = window.setTimeout(() => { scrollLock = false }, 2000)
       }
 
       if (flyStartTime >= 0) {
-        camZ = flyFromZ + (flyToZ - flyFromZ) * flyT
-        // Shard Z is locked 6 units in front of camera — never behind it
-        // Only X/Y lerp for the cinematic lateral drift
-        shardCurrentPos.x += (shardTargetPos.x - shardCurrentPos.x) * 0.04
-        shardCurrentPos.y += (shardTargetPos.y - shardCurrentPos.y) * 0.04
-        shardCurrentPos.z  = camZ - 6   // always in front of camera
-        babyCurrentPos.x  += (babyTargetPos.x - babyCurrentPos.x) * 0.04
-        babyCurrentPos.y  += (babyTargetPos.y - babyCurrentPos.y) * 0.04
-        babyCurrentPos.z   = camZ - 6
+        quadBezier(flyT, flyFromPos, flyCtrlPos, flyToPos, camPos)
+        camTarget.lerpVectors(flyFromTarget, flyToTarget, flyT)
+
+        // keep shard floating in front of the camera during flight so it doesn't clip behind walls
+        const fwd = camTarget.clone().sub(camPos).normalize()
+        const shardFront = camPos.clone().addScaledVector(fwd, 6)
+        shardCurrentPos.lerp(shardFront, 0.04)
+        babyCurrentPos.lerp(shardFront, 0.04)
         shardCurrentScale += (shardTargetScale - shardCurrentScale) * 0.012
       } else {
-        // Landed: settle X/Y/Z and scale to section targets
-        shardCurrentPos.x += (shardTargetPos.x - shardCurrentPos.x) * 0.06
-        shardCurrentPos.y += (shardTargetPos.y - shardCurrentPos.y) * 0.06
-        shardCurrentPos.z += (shardTargetPos.z - shardCurrentPos.z) * 0.06
-        babyCurrentPos.x  += (babyTargetPos.x - babyCurrentPos.x) * 0.06
-        babyCurrentPos.y  += (babyTargetPos.y - babyCurrentPos.y) * 0.06
-        babyCurrentPos.z  += (babyTargetPos.z - babyCurrentPos.z) * 0.06
+        const sec = SECTIONS[spaceNav.currentIndex]
+        shardTargetPos.set(...sec.shardWorld)
+        shardTargetScale = sec.shardScale
+        // on work, baby tracks the slab scroll instead of a fixed world position
+        if (spaceNav.currentIndex !== 1) {
+          babyTargetPos.set(...sec.babyWorld)
+        }
+        shardCurrentPos.lerp(shardTargetPos, 0.06)
+        babyCurrentPos.lerp(babyTargetPos, 0.06)
         shardCurrentScale += (shardTargetScale - shardCurrentScale) * 0.05
       }
 
-      camera.position.z = camZ
+      const bobX = Math.sin(clock * 0.47) * 0.004
+      const bobY = Math.sin(clock * 0.31) * 0.006
+      camera.position.copy(camPos)
+      camera.position.x += bobX
+      camera.position.y += bobY
+      camera.lookAt(camTarget)
 
-      // Camera yaw — sweeps ~25° to the left mid-flight so shard stays in view
-      const isFlying3D = flyStartTime >= 0
-      const yawTarget  = isFlying3D ? Math.sin(flyT * Math.PI) * -0.42 : 0
-      camYaw += (yawTarget - camYaw) * (isFlying3D ? 0.06 : 0.04)
-      camera.rotation.y = camYaw
+      // subtle roll during flight — applied after lookAt so it's in camera-local space
+      const bankTarget = flyStartTime >= 0 ? Math.sin(flyT * Math.PI) * 0.04 : 0
+      camBank += (bankTarget - camBank) * 0.08
+      if (Math.abs(camBank) > 0.0001) camera.rotateZ(camBank)
 
-      // Camera Z-bank (roll) during flight
-      const velocity = isFlying3D ? (flyToZ - flyFromZ) / flyDuration : 0
-      const bank = isFlying3D ? Math.sin(flyT * Math.PI) * Math.sign(velocity) * 0.03 : 0
-      camera.rotation.z += (bank - camera.rotation.z) * 0.08
+      for (let pi = 0; pi < platformLights.length; pi++) {
+        const pl  = platLightPos[pi]
+        const dx  = camPos.x - pl[0], dy = camPos.y - pl[1], dz = camPos.z - pl[2]
+        const d   = Math.sqrt(dx*dx + dy*dy + dz*dz)
+        // 0.8 floor so platforms are never pure black at distance, peaks at 8.0 up close
+        const tgt = 0.8 + Math.max(0, 1 - d / 50) * 7.2
+        platformLights[pi].intensity += (tgt - platformLights[pi].intensity) * 0.06
+      }
 
-      // Star streaking
-      if (Math.abs(velocity) > 1) {
-        const streak = Math.min(1, Math.abs(velocity) / 80)
-        for (let i = 0; i < STAR_COUNT; i++) {
-          sSizes[i] = (0.5 + Math.random() * 2.5) * (1 + streak * 4)
+      const atWork = spaceNav.currentIndex === 1
+      galleryMain.visible = atWork
+      slabGroup.visible   = atWork
+      if (atWork) {
+        const slabTargetX = SLAB_BASE_X - navStore.workCardIndex * SLAB_SPACING
+        slabScrollX += (slabTargetX - slabScrollX) * 0.08
+        slabGroup.position.x = slabScrollX
+
+
+        raycaster.setFromCamera(mouseNDC, camera)
+        const hoverHits = raycaster.intersectObjects(cardPlanes)
+        galleryBridge.hoveredIndex = hoverHits.length
+          ? cardPlanes.indexOf(hoverHits[0].object as THREE.Mesh)
+          : -1
+
+        const activeIdx = navStore.workCardIndex
+        for (let ci = 0; ci < cardPlanes.length; ci++) {
+          const plane     = cardPlanes[ci]
+          const isActive  = ci === activeIdx
+          const isHovered = ci === galleryBridge.hoveredIndex
+          const tgtZ = isActive ? 0.35 : 0.0
+          const tgtS = isActive ? 1.0 : isHovered ? 0.88 : 0.82
+          plane.position.z += (tgtZ - plane.position.z) * 0.1
+          plane.rotation.y += (0    - plane.rotation.y) * 0.1
+          plane.scale.x    += (tgtS - plane.scale.x)    * 0.1
+          plane.scale.y     = plane.scale.x
         }
-        ;(starGeo.attributes.aSize as THREE.BufferAttribute).needsUpdate = true
       }
 
       const curSection = SECTIONS[spaceNav.currentIndex]
       const rotPeriod  = curSection.rotPeriod
 
-      // Particle brightness — boosted on contact section
       const isContact     = curSection.key === 'contact'
       const targetOpacity = phase === 'done' ? (isContact ? 0.95 : 0.7) : 0
       pMat.opacity += (targetOpacity - pMat.opacity) * 0.04
 
-      mainRotY += delta * (Math.PI * 2 / rotPeriod)
-      babyRotY -= delta * (Math.PI * 2 / BABY_PERIOD)
+      // spin boost and scale pulse during flight — settles back to idle on arrival
+      const flyBlend  = flyStartTime >= 0 ? Math.sin(flyT * Math.PI) : 0
+      const spinBoost = 1 + flyBlend * 7
+      const scalePulse = 1 + flyBlend * 0.12
+
+      mainRotY += delta * (Math.PI * 2 / rotPeriod) * spinBoost
+      // slow at work so it feels like it's resting on the platform; faster everywhere else
+      const babySpeed = atWork ? 0.25 : (Math.PI * 2 / BABY_PERIOD) * (1 + flyBlend * 4)
+      babyRotY -= delta * babySpeed
 
       const floatT = (clock - doneStart) / FLOAT_CYCLE * Math.PI * 2
 
@@ -945,29 +1170,44 @@ onMounted(() => {
         mainShard.position.x = shardCurrentPos.x
         mainShard.position.y = shardCurrentPos.y + Math.sin(floatT) * FLOAT_AMP
         mainShard.position.z = shardCurrentPos.z
-        mainShard.scale.setScalar(mainBaseScale * shardCurrentScale)
-        mainShard.rotation.x = FINAL_MAIN_ROT.x + tiltX
+        mainShard.scale.setScalar(mainBaseScale * shardCurrentScale * scalePulse)
+        mainShard.rotation.x = FINAL_MAIN_ROT.x + tiltX + flyBlend * 0.4
         mainShard.rotation.y = mainRotY
-        mainShard.rotation.z = FINAL_MAIN_ROT.z + tiltZ
+        mainShard.rotation.z = FINAL_MAIN_ROT.z + tiltZ + flyBlend * 0.25
       }
 
       if (babyShard) {
         babyShard.position.x = babyCurrentPos.x
-        babyShard.position.y = babyCurrentPos.y + Math.sin(floatT + Math.PI) * FLOAT_AMP * 0.8
+        // no float at work — looks better sitting still on the platform
+        babyShard.position.y = atWork
+          ? babyCurrentPos.y
+          : babyCurrentPos.y + Math.sin(floatT + Math.PI) * FLOAT_AMP * 0.8
         babyShard.position.z = babyCurrentPos.z
-        babyShard.rotation.x = FINAL_BABY_ROT.x + tiltX * 0.7
+        babyShard.rotation.x = atWork ? FINAL_BABY_ROT.x : FINAL_BABY_ROT.x + tiltX * 0.7
         babyShard.rotation.y = babyRotY
-        babyShard.rotation.z = FINAL_BABY_ROT.z + tiltZ * 0.7
+        babyShard.rotation.z = atWork ? FINAL_BABY_ROT.z : FINAL_BABY_ROT.z + tiltZ * 0.7
       }
 
-      // Orbit particles around current shard position
       for (let i = 0; i < COUNT; i++) {
         pAngles[i] += pSpeed[i] * delta
-        const r = pRadii[i], a = pAngles[i], inc = pInc[i]
-        const zRaw = r * Math.sin(a)
-        let x = shardCurrentPos.x + (pCX[i] < 2.0 ? 0 : babyCurrentPos.x - shardCurrentPos.x) + r * Math.cos(a)
-        let y = (pCX[i] < 2.0 ? shardCurrentPos.y : babyCurrentPos.y) + zRaw * Math.sin(inc)
-        const z = shardCurrentPos.z + zRaw * Math.cos(inc)
+        const a  = pAngles[i]
+        const th = pTheta[i], ph = pPhi[i]
+        const r  = pRadii[i]
+
+        // orbit in local XY, then tilt that circle by rotating around Z (phi) then X (theta)
+        const lx = r * Math.cos(a)
+        const ly = r * Math.sin(a)
+
+        const x1 = lx * Math.cos(ph) - ly * Math.sin(ph)
+        const y1 = lx * Math.sin(ph) + ly * Math.cos(ph)
+        const z1 = 0
+        const x2 = x1
+        const y2 = y1 * Math.cos(th) - z1 * Math.sin(th)
+        const z2 = y1 * Math.sin(th) + z1 * Math.cos(th)
+
+        let x = shardCurrentPos.x + x2
+        let y = shardCurrentPos.y + y2
+        const z = shardCurrentPos.z + z2
 
         const dx = x - mouseNDC.x * 3
         const dy = y - mouseNDC.y * 3
@@ -981,7 +1221,6 @@ onMounted(() => {
       }
       posAttr.needsUpdate = true
 
-      // Debris rotation
       for (const { mesh, rv } of debrisPieces) {
         mesh.rotation.x += rv.x * delta
         mesh.rotation.y += rv.y * delta
@@ -989,37 +1228,30 @@ onMounted(() => {
       }
     }
 
-    // ── Space: twinkling stars ────────────────────────────────────────
-    for (let i = 0; i < STAR_COUNT; i++) {
-      sBrightAttr.array[i] = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(clock * sTwinkSpeed[i] + sTwinkPhase[i]))
-    }
-    sBrightAttr.needsUpdate = true
-
-    for (let i = 0; i < HERO_COUNT; i++) {
-      hBrightAttr.array[i] = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(clock * hTwinkSpeed[i] + hTwinkPhase[i]))
-    }
-    hBrightAttr.needsUpdate = true
-
-    // ── Space: dust drift (wrap at bounds) ────────────────────────────
-    for (let i = 0; i < DUST_COUNT; i++) {
-      dustAttr.array[i*3]   += dVel[i*3]
-      dustAttr.array[i*3+1] += dVel[i*3+1]
-      dustAttr.array[i*3+2] += dVel[i*3+2]
-      if (Math.abs(dustAttr.array[i*3])   > 7)  dVel[i*3]   *= -1
-      if (Math.abs(dustAttr.array[i*3+1]) > 4.5) dVel[i*3+1] *= -1
-      if (Math.abs(dustAttr.array[i*3+2]) > 4)  dVel[i*3+2] *= -1
-    }
-    dustAttr.needsUpdate = true
-
-    // ── Space: nebula slow drift ──────────────────────────────────────
-    for (let i = 0; i < nebulaObjects.length; i++) {
-      nebulaObjects[i].position.x += Math.sin(clock * 0.028 + i * 1.3) * 0.00025
-      nebulaObjects[i].position.y += Math.cos(clock * 0.022 + i * 0.9) * 0.00020
-    }
-
     renderer!.render(scene, camera)
   }
   tick()
+
+  // on hard reload, snap camera to whatever section the URL points to.
+  // The loader animation still plays — the camera is just pre-positioned so we don't always land on Home.
+  const initialPath = router.currentRoute.value.path
+  const initialIdx  = Math.max(0, SECTIONS.findIndex(s => s.path === initialPath))
+  if (initialIdx !== 0) {
+    const sec = SECTIONS[initialIdx]
+    camPos.set(...sec.cameraPos)
+    camTarget.set(...sec.lookAt)
+    camera.position.copy(camPos)
+    camera.lookAt(camTarget)
+    shardTargetPos.set(...sec.shardWorld)
+    shardTargetScale = sec.shardScale
+    babyTargetPos.set(...sec.babyWorld)
+    shardCurrentPos.set(...sec.shardWorld)
+    shardCurrentScale = sec.shardScale
+    babyCurrentPos.set(...sec.babyWorld)
+    watchedIdx = initialIdx
+    spaceNav.navigateTo(initialIdx)
+    spaceNav.onArrived()   // clear isFlying immediately
+  }
 
   ;(canvas as any)._cleanup = () => {
     window.removeEventListener('mousemove', onMove)
@@ -1027,6 +1259,11 @@ onMounted(() => {
     window.removeEventListener('click', skipToEnd)
     window.removeEventListener('wheel', onWheel)
     window.removeEventListener('keydown', onKey)
+    clearTimeout(sectionIdleTimer)
+    clearTimeout(postArrivalTimer)
+    galleryBridge.raycast = null
+    galleryBridge.getCardScreenPos = null
+    galleryBridge.navigateSection = null
   }
 })
 
@@ -1051,7 +1288,7 @@ onUnmounted(() => {
   height: 100vh;
   pointer-events: none;
   z-index: 0;
-  background: transparent;
+  background: #030008;
 }
 
 .loader-canvas {

@@ -130,7 +130,7 @@ onUnmounted(() => {
 .landing-name {
   font-family: 'Syne', sans-serif;
   font-weight: 800;
-  font-size: clamp(3.8rem, 8.5vw, 9.5rem);
+  font-size: clamp(2.6rem, 5.8vw, 8rem);
   line-height: 1;
   color: var(--ink);
   display: flex;
