@@ -17,6 +17,7 @@ function resolveItem(item: string | { fr: string; en: string }): string {
 
 function toggleRow(key: string) {
   activeRow.value = activeRow.value === key ? null : key
+  // console.log('[about] active row ->', activeRow.value)
   navStore.setActiveAboutRow(activeRow.value)
 }
 
@@ -24,6 +25,7 @@ onMounted(() => {
   if (!rootEl.value) return
   const scope = rootEl.value
 
+  // console.log('[about] starting entrance animation')
   const tl = gsap.timeline({ delay: 2.5 })
 
   tl.from(scope.querySelector('.about-heading'), {

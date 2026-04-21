@@ -4,14 +4,14 @@ import { defineStore } from 'pinia'
 export const useNavigationStore = defineStore('navigation', () => {
   const workCardIndex = ref(0)
 
-  // Screen x-coords (px) of each card's dot — populated by WorkView after layout is measured.
-  // TravelingShape reads these directly so positions are always pixel-accurate.
+  // x positions of the nav dots — WorkView fills these after measuring the DOM
+  // TravelingShape reads from here so it always stays pixel-accurate
   const workDotPositions = ref<number[]>([])
 
   const activeAboutRow = ref<string | null>(null)
 
   function setWorkCard(idx: number, dotPositions: number[]) {
-    workCardIndex.value   = idx
+    workCardIndex.value    = idx
     workDotPositions.value = dotPositions
   }
 

@@ -6,13 +6,14 @@ export interface SectionDef {
   path:        string
   cameraPos:   [number, number, number]
   lookAt:      [number, number, number]
-  platformPos: [number, number, number]  // used for proximity lighting
+  platformPos: [number, number, number]
   shardWorld:  [number, number, number]
   babyWorld:   [number, number, number]
   shardScale:  number
   rotPeriod:   number
 }
 
+// these took forever to tune, be careful changing them
 export const SECTIONS: SectionDef[] = [
   {
     key: 'home',    path: '/',
@@ -57,6 +58,7 @@ export const useSpaceNav = defineStore('spaceNav', () => {
   }
 
   function navigateTo(index: number) {
+    // console.log('[spaceNav] navigateTo', index, SECTIONS[index]?.key)
     currentIndex.value = Math.max(0, Math.min(SECTIONS.length - 1, index))
     isFlying.value = true
   }

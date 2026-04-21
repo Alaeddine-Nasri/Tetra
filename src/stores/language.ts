@@ -4,7 +4,7 @@ import { ref } from 'vue'
 export type Locale = 'fr' | 'en'
 
 export const useLanguageStore = defineStore('language', () => {
-  const locale = ref<Locale>('fr')
+  const locale = ref<Locale>('en')
 
   function toggle() {
     locale.value = locale.value === 'fr' ? 'en' : 'fr'

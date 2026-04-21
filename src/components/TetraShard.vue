@@ -60,7 +60,7 @@ onMounted(() => {
     gc.width = S; gc.height = S
     const gx = gc.getContext('2d')!
 
-    // mid grey base — bright enough to contrast the glowing cracks
+    // slightly warm grey base — enough contrast for the purple cracks to pop
     gx.fillStyle = '#2e2e36'
     gx.fillRect(0, 0, S, S)
 
@@ -72,7 +72,7 @@ onMounted(() => {
       [[0.20,0.02],[0.32,0.18],[0.45,0.12],[0.55,0.25],[0.68,0.10]],
     ] as [number,number][][]
 
-    // wide glow halo, then a tight bright core on top
+    // fat glow pass first, then tight bright core — gives the LED effect
     gx.shadowColor = '#9b3fff'
     gx.shadowBlur  = 28
     gx.strokeStyle = 'rgba(160, 90, 255, 0.7)'
@@ -94,7 +94,7 @@ onMounted(() => {
       gx.stroke()
     }
 
-    // hairline cracks, dimmer so they don't compete with the main ones
+    // smaller secondary cracks — kept dim so they don't compete with the main ones
     const hairCracks = [
       [[0.12,0.40],[0.28,0.47],[0.38,0.35]],
       [[0.60,0.30],[0.72,0.22],[0.80,0.38]],
@@ -125,7 +125,7 @@ onMounted(() => {
 
     gx.shadowBlur = 0
 
-    // scattered ellipses to break up the flat base colour
+    // random ellipses to break the flat base — gives it a rough stone feel
     for (let i = 0; i < 180; i++) {
       const px = Math.random() * S
       const py = Math.random() * S
@@ -140,7 +140,7 @@ onMounted(() => {
       gx.fill()
     }
 
-    // vignette to push edges into shadow
+    // darken the edges so the tile seams aren't obvious
     const vignette = gx.createRadialGradient(S/2, S/2, S*0.15, S/2, S/2, S*0.75)
     vignette.addColorStop(0,   'rgba(30, 22, 40, 0.0)')
     vignette.addColorStop(0.6, 'rgba(15, 8, 25, 0.3)')
@@ -156,7 +156,7 @@ onMounted(() => {
 
   const caveTex = makeCaveTexture()
 
-  // needs MeshStandardMaterial so the platform point lights actually show on the walls
+  // has to be MeshStandard, MeshBasic ignores point lights so the cave would look flat
   const wallMat = new THREE.MeshStandardMaterial({
     map:        caveTex,
     side:       THREE.BackSide,
@@ -170,7 +170,7 @@ onMounted(() => {
   scene.add(vaultShell)
 
 
-  // placeholder groups — GLBs are loaded and added below once gltfLoader is ready
+  // empty groups — the GLBs drop into these once they load
   const platformHome = new THREE.Group()
   platformHome.position.set(0, -2, -6)
   scene.add(platformHome)
@@ -198,7 +198,7 @@ onMounted(() => {
   for (let i = 0; i < content.work.projects.length; i++) {
     const proj = content.work.projects[i]
     const geo  = new THREE.PlaneGeometry(CARD_W, CARD_H)
-    const mat  = new THREE.MeshBasicMaterial({ color: 0xffffff })   // white tint = texture renders at true colour
+    const mat  = new THREE.MeshBasicMaterial({ color: 0xffffff })   // white so the texture shows at its real colour
     const mesh = new THREE.Mesh(geo, mat)
     mesh.position.set(i * SLAB_SPACING, 2.2, 0.0)
     slabGroup.add(mesh)
@@ -246,7 +246,7 @@ onMounted(() => {
   platformContact.position.set(-2, -1, -130)
   scene.add(platformContact)
 
-  // two lights per platform: warm main from above that lerps in on proximity, and a always-dim purple rim
+  // two lights per platform: a warm one that fades in as the camera approaches, plus a dim purple rim that's always on
   const platLightPos: [number,number,number][] = [
     [  0,   2,   -6 ],
     [-17,  -6,  -44 ],   // centred on slab group
@@ -259,7 +259,7 @@ onMounted(() => {
   for (let i = 0; i < 4; i++) {
     const [px, py, pz] = platLightPos[i]
 
-    // home starts fully lit; others start at 0 and lerp in as the camera gets close
+    // home is lit from the start, the rest fade in as you fly toward them
     const initIntensity = i === 0 ? 7.0 : 0.0
     const main = new THREE.PointLight(0xe8e0ff, initIntensity, 55)
     main.position.set(px, py + 4, pz)   // +4 keeps it tight to the model — +8 was too far and lost intensity
@@ -356,7 +356,8 @@ onMounted(() => {
     flyToPos.set(...to.cameraPos)
     flyToTarget.set(...to.lookAt)
 
-    // bend the control point perpendicular to the path + push it up slightly for a natural arc
+    // push the bezier control point sideways + slightly up so the camera arcs
+    // instead of cutting a straight line through the geometry
     const mid  = flyFromPos.clone().add(flyToPos).multiplyScalar(0.5)
     const dir  = flyToPos.clone().sub(flyFromPos).normalize()
     const up   = new THREE.Vector3(0, 1, 0)
@@ -366,8 +367,11 @@ onMounted(() => {
       .addScaledVector(perp, arcLen * 0.18)
       .addScaledVector(up,   arcLen * 0.10)
 
+    // longer distance = longer flight, capped so it never feels sluggish
     flyDuration  = Math.min(2.0, Math.max(1.0, arcLen / 55))
     flyStartTime = clock
+
+    // console.log('[fly] to', to.key, 'duration', flyDuration.toFixed(2), 'arcLen', arcLen.toFixed(1))
 
     shardTargetPos.set(...to.shardWorld)
     shardTargetScale = to.shardScale
@@ -379,29 +383,37 @@ onMounted(() => {
   let scrollLock     = false
   let postArrivalTimer = 0
 
-  function doNavigate(dir: 1 | -1) {
-    if (scrollLock) return
+  function doNavigate(dir: 1 | -1, force = false) {
+    if (scrollLock && !force) return
     const next = Math.max(0, Math.min(SECTIONS.length - 1, spaceNav.currentIndex + dir))
-    if (next === spaceNav.currentIndex) return
+    if (next === spaceNav.currentIndex) return  // already at the edge, nothing to do
+
+    // console.log('[nav] going', dir > 0 ? 'forward' : 'back', '→', SECTIONS[next].key)
+
     scrollLock = true
+    clearTimeout(postArrivalTimer)
     spaceNav.navigateTo(next)
     router.push(SECTIONS[next].path)
   }
 
-  galleryBridge.navigateSection = doNavigate
+  // WorkView pushes navigation from here when the user scrolls past the last/first card
+  // force=true so the scroll lock doesn't block it — the user earned that swipe
+  galleryBridge.navigateSection = (dir) => doNavigate(dir, true)
 
-  // separate accumulator so this doesn't interfere with WorkView's own card scroll handling
+  // this accumulator is separate from WorkView's so they don't step on each other
   let sectionDelta    = 0
   let sectionIdleTimer = 0
 
   const onWheel = (e: WheelEvent) => {
-    // WorkView handles its own wheel on the work section
-    if (spaceNav.currentIndex === 1) return
+    if (spaceNav.currentIndex === 1) return  // work section owns its own scroll
     if (scrollLock) return
 
     sectionDelta += e.deltaY
     clearTimeout(sectionIdleTimer)
-    sectionIdleTimer = window.setTimeout(() => { sectionDelta = 0 }, 600)
+    // reset if the user pauses — prevents a stale delta from firing on the next touch
+    sectionIdleTimer = window.setTimeout(() => { sectionDelta = 0 }, 900)
+
+    // console.log('[wheel] sectionDelta', sectionDelta.toFixed(0))
 
     if (Math.abs(sectionDelta) < 250) return
     const dir = sectionDelta > 0 ? 1 : -1
@@ -447,11 +459,11 @@ onMounted(() => {
     }
   }
 
-  // separate x/y radii — the shard isn't square, so the diamond needs non-uniform extents
+  // the shard isn't square so the loading diamond uses separate x/y radii
   let crossRX  = 0.75
   let crossRY  = 0.75
-  let flashT   = -1      // -1 = inactive, 0→1 = playing
-  let flashDelay = -1    // clock time the flash was armed at; -1 = not armed
+  let flashT   = -1      // -1 means idle
+  let flashDelay = -1    // armed clock time, -1 = not yet
 
   const EXP_COUNT = 55
   type ExpParticle = { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; r: number }
@@ -513,6 +525,8 @@ onMounted(() => {
   const FINAL_BABY_ROT = { x: -0.1, y: 0.3, z: 0.2 }
 
   const gltfLoader = new GLTFLoader()
+
+  // console.log('[3d] starting model loads')
 
   gltfLoader.load('/3d/thealter.glb', (gltf) => {
     const altar = gltf.scene
@@ -690,7 +704,7 @@ onMounted(() => {
     mainShard = gltf.scene
     mainBaseScale = normalizeModel(mainShard, 2.2)
 
-    // measure the loaded mesh so crossRX/Y match the real silhouette, not a guess
+    // read the actual mesh bounds so the loading cross fits the shard perfectly
     const box  = new THREE.Box3().setFromObject(mainShard)
     const size = new THREE.Vector3()
     box.getSize(size)
@@ -705,8 +719,9 @@ onMounted(() => {
 
     assetsLoaded++
     loadFraction = assetsLoaded / 2
+    // console.log('[3d] main shard loaded, crossRX:', crossRX.toFixed(2), 'crossRY:', crossRY.toFixed(2))
 
-    // start phase1 here, not earlier — crossRX/Y must be set from the real mesh first
+    // start the intro only after the mesh is loaded — we need the real size for the cross animation
     if (phase === 'waiting') {
       phase = 'phase1'
       phase1Start = clock
@@ -727,12 +742,13 @@ onMounted(() => {
   }, onProgress)
 
   const COUNT   = 112
-  // each particle orbits on its own tilted circle — theta/phi define the tilt axis
-  const pAngles = new Float32Array(COUNT)   // current angle around its axis
-  const pRadii  = new Float32Array(COUNT)   // orbit radius
-  const pSpeed  = new Float32Array(COUNT)   // angular speed
-  const pTheta  = new Float32Array(COUNT)   // axis polar angle (0..π)
-  const pPhi    = new Float32Array(COUNT)   // axis azimuth angle (0..2π)
+  // each particle has its own tilted orbit — theta/phi pick the tilt axis randomly
+  // using acos(2r-1) instead of just random() gives a uniform spread across the sphere
+  const pAngles = new Float32Array(COUNT)   // where on its orbit ring
+  const pRadii  = new Float32Array(COUNT)   // how far from center
+  const pSpeed  = new Float32Array(COUNT)   // how fast it spins
+  const pTheta  = new Float32Array(COUNT)   // orbit tilt (0..π)
+  const pPhi    = new Float32Array(COUNT)   // orbit azimuth (0..2π)
   const pPos    = new Float32Array(COUNT * 3)
   const pCol    = new Float32Array(COUNT * 3)
   const colA    = new THREE.Color(0x7b2fbe)
@@ -823,7 +839,7 @@ onMounted(() => {
       const ex  = x1 + (x2 - x1) * fillProgress
       const ey  = y1 + (y2 - y1) * fillProgress
 
-      // three passes: wide glow halo → coloured core → bright specular thread
+      // three layers: fat glow → coloured line → thin bright thread on top
       ctx.beginPath()
       ctx.moveTo(x1, y1)
       ctx.lineTo(ex, ey)
@@ -850,7 +866,7 @@ onMounted(() => {
       ctx.stroke()
     }
 
-    // small dots at the tips once the lines finish drawing
+    // tiny glow dots at each tip — only appear when the lines are fully drawn
     if (fillProgress > 0.97 && morphT < 0.25) {
       ctx.shadowColor = '#a855f7'
       ctx.shadowBlur  = 12
@@ -1070,8 +1086,10 @@ onMounted(() => {
         camTarget.copy(flyToTarget)
         spaceNav.onArrived()
         sectionDelta = 0
+        // console.log('[fly] arrived at', SECTIONS[spaceNav.currentIndex]?.key)
         clearTimeout(postArrivalTimer)
-        postArrivalTimer = window.setTimeout(() => { scrollLock = false }, 2000)
+        // brief cooldown so a fast scroll doesn't immediately fire another section jump
+        postArrivalTimer = window.setTimeout(() => { scrollLock = false }, 700)
       }
 
       if (flyStartTime >= 0) {
@@ -1088,7 +1106,7 @@ onMounted(() => {
         const sec = SECTIONS[spaceNav.currentIndex]
         shardTargetPos.set(...sec.shardWorld)
         shardTargetScale = sec.shardScale
-        // on work, baby tracks the slab scroll instead of a fixed world position
+        // in the work section the baby shard follows the scroll instead of sitting still
         if (spaceNav.currentIndex !== 1) {
           babyTargetPos.set(...sec.babyWorld)
         }
@@ -1113,7 +1131,7 @@ onMounted(() => {
         const pl  = platLightPos[pi]
         const dx  = camPos.x - pl[0], dy = camPos.y - pl[1], dz = camPos.z - pl[2]
         const d   = Math.sqrt(dx*dx + dy*dy + dz*dz)
-        // 0.8 floor so platforms are never pure black at distance, peaks at 8.0 up close
+        // floor at 0.8 so they're never completely dark, max ~8.0 when you're right on top
         const tgt = 0.8 + Math.max(0, 1 - d / 50) * 7.2
         platformLights[pi].intensity += (tgt - platformLights[pi].intensity) * 0.06
       }
@@ -1154,13 +1172,13 @@ onMounted(() => {
       const targetOpacity = phase === 'done' ? (isContact ? 0.95 : 0.7) : 0
       pMat.opacity += (targetOpacity - pMat.opacity) * 0.04
 
-      // spin boost and scale pulse during flight — settles back to idle on arrival
+      // shard spins faster and scales up a bit while flying — settles back on arrival
       const flyBlend  = flyStartTime >= 0 ? Math.sin(flyT * Math.PI) : 0
       const spinBoost = 1 + flyBlend * 7
       const scalePulse = 1 + flyBlend * 0.12
 
       mainRotY += delta * (Math.PI * 2 / rotPeriod) * spinBoost
-      // slow at work so it feels like it's resting on the platform; faster everywhere else
+      // baby shard spins slower on the work platform — like it's just idling
       const babySpeed = atWork ? 0.25 : (Math.PI * 2 / BABY_PERIOD) * (1 + flyBlend * 4)
       babyRotY -= delta * babySpeed
 

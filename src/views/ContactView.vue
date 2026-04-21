@@ -9,13 +9,14 @@ const rootEl     = ref<HTMLElement | null>(null)
 const emailRef   = ref<HTMLElement | null>(null)
 const socialsRef = ref<HTMLElement | null>(null)
 
-// Split headline into individual word spans for the stagger reveal
+// split the headline into words so gsap can stagger them one by one
 const words = computed(() => t(content.contact.headline).split(' '))
 
 onMounted(() => {
   if (!rootEl.value) return
   const scope = rootEl.value
 
+  // console.log('[contact] words to animate:', words.value)
   const tl = gsap.timeline({ delay: 2.5 })
 
   tl.from(scope.querySelectorAll('.contact-word'), {

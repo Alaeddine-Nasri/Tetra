@@ -44,7 +44,7 @@ onMounted(() => {
   if (!rootEl.value) return
   const scope = rootEl.value
 
-  // Always pre-hide name + role so there's no flash before animation
+  // hide immediately so there's no flash of unstyled text before the animation kicks in
   gsap.set(scope.querySelectorAll('.landing-word'), { y: '108%' })
   gsap.set(scope.querySelector('.landing-role'), { opacity: 0, y: 12 })
 
@@ -58,7 +58,7 @@ onMounted(() => {
   if (loaderStore.done) {
     triggerAnimation()
   } else {
-    // Wait for 3D loader, but never block longer than 5s
+    // wait for the 3d intro, but never block more than 5s in case something goes wrong
     unwatchLoader = watch(() => loaderStore.done, (done) => { if (done) triggerAnimation() })
     fallbackTimer = setTimeout(triggerAnimation, 5000)
   }

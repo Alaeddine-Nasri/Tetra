@@ -14,6 +14,7 @@ watch(() => spaceNav.isFlying, (flying) => {
   if (flying) {
     visible.value = false
   } else {
+    // tiny delay before fade-in so the new view has a frame to render first
     setTimeout(() => { visible.value = true }, 80)
   }
 }, { flush: 'sync' })

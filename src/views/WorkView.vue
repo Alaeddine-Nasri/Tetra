@@ -29,7 +29,7 @@ function trackHover() {
   vigRafId = requestAnimationFrame(trackHover)
   const idx = galleryBridge.hoveredIndex
 
-  // only highlight cards adjacent to the active one — avoids confusing labels on far-away slabs
+  // only show the vignette for cards next to the active one — labels on distant cards look weird
   const inRange = Math.abs(idx - currentCardIdx) <= 1
   if (idx < 0 || !inRange || !galleryBridge.getCardScreenPos) {
     if (lastHovered !== -1) { hoveredProject.value = null; lastHovered = -1 }
@@ -39,7 +39,7 @@ function trackHover() {
   const pos = galleryBridge.getCardScreenPos(idx)
   if (!pos) { hoveredProject.value = null; lastHovered = -1; return }
 
-  // update every frame so the overlay tracks as the slab scrolls
+  // update every frame — the cards are moving so the overlay has to chase them
   vignetteStyle.value = {
     left:   `${pos.left}px`,
     top:    `${pos.top}px`,
@@ -70,11 +70,15 @@ function onWheel(e: WheelEvent) {
   const goingFwd = e.deltaY > 0
   const goingBck = e.deltaY < 0
 
-  // at the edge of the card list, build up delta until the user "escapes" to the next section
+  // user is at the edge of the card list — let them "push through" to the next section
+  // needs enough delta so accidental over-scrolls don't fire this
   if ((goingFwd && atEnd) || (goingBck && atStart)) {
     sectionDelta += e.deltaY
     clearTimeout(sectionIdleTimer)
-    sectionIdleTimer = window.setTimeout(() => { sectionDelta = 0 }, 600)
+    sectionIdleTimer = window.setTimeout(() => { sectionDelta = 0 }, 900)
+
+    // console.log('[WorkView] boundary sectionDelta', sectionDelta.toFixed(0), goingFwd ? '→' : '←')
+
     if (Math.abs(sectionDelta) >= SECTION_THRESHOLD) {
       sectionDelta = 0
       galleryBridge.navigateSection?.(goingFwd ? 1 : -1)
@@ -98,12 +102,43 @@ function onWheel(e: WheelEvent) {
 
 const activeProject = ref<Project | null>(null)
 
-function onClick(e: MouseEvent) {
-  if (!galleryBridge.raycast) return
-  const idx = galleryBridge.raycast(e.clientX, e.clientY)
-  if (idx < 0) return
-  goToCard(idx)
-  activeProject.value = content.work.projects[idx]
+// drag-to-scroll — only counts as a drag if the mouse actually moved enough
+let dragStartX    = 0
+let dragStartCard = 0
+let isDragging    = false
+const DRAG_THRESHOLD = 6   // under 6px = click, over = drag
+
+function onMouseDown(e: MouseEvent) {
+  dragStartX    = e.clientX
+  dragStartCard = currentCardIdx
+  isDragging    = false
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup',   onMouseUp)
+}
+
+function onMouseMove(e: MouseEvent) {
+  const dx = e.clientX - dragStartX
+  if (!isDragging && Math.abs(dx) > DRAG_THRESHOLD) isDragging = true
+  if (!isDragging) return
+
+  // roughly 120px per card feels natural — not too twitchy, not too slow
+  const steps = Math.round(-dx / 120)
+  goToCard(Math.max(0, Math.min(N - 1, dragStartCard + steps)))
+}
+
+function onMouseUp(e: MouseEvent) {
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('mouseup',   onMouseUp)
+
+  if (!isDragging) {
+    // short press with no movement = click, open the project panel
+    if (!galleryBridge.raycast) return
+    const idx = galleryBridge.raycast(e.clientX, e.clientY)
+    if (idx < 0) return
+    goToCard(idx)
+    activeProject.value = content.work.projects[idx]
+  }
+  isDragging = false
 }
 
 onMounted(() => {
@@ -118,11 +153,13 @@ onUnmounted(() => {
   cancelAnimationFrame(vigRafId)
   galleryBridge.hoveredIndex = -1
   galleryBridge.navigateSection = null
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('mouseup',   onMouseUp)
 })
 </script>
 
 <template>
-  <main class="work-view" @wheel.prevent="onWheel" @click="onClick">
+  <main class="work-view" @wheel.prevent="onWheel" @mousedown="onMouseDown">
     <div class="work-title" aria-hidden="true">
       <span class="work-title-text">{{ t(content.work.heading) }}</span>
       <span class="work-title-counter">{{ counter }}</span>
