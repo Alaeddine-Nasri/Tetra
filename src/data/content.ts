@@ -286,6 +286,22 @@ The project detail panel takes inspiration from itssharl.ee — slides in from t
               fr: 'Panneau qui glisse depuis la droite — labels CATÉGORIE / ANNÉE / STACK à gauche, contenu scrollable à droite, fermeture Escape ou overlay.',
               en: 'Panel sliding in from the right — CATEGORY / YEAR / STACK labels on the left, scrollable content on the right, closes on Escape or overlay click.'
             }
+          },
+          {
+            src: '/projects/tetra-4.png',
+            title: { fr: 'Section About — accordéon', en: 'About section — accordion' },
+            description: {
+              fr: 'Deux colonnes : stats et bio à gauche, rangées accordéon (compétences, formation, langues) à droite — chaque rangée s\'ouvre avec une transition opacity+translate.',
+              en: 'Two-column layout: stats and bio on the left, accordion rows (skills, education, languages) on the right — each row opens with an opacity+translate transition.'
+            }
+          },
+          {
+            src: '/projects/tetra-5.png',
+            title: { fr: 'Section Contact', en: 'Contact section' },
+            description: {
+              fr: 'Titre cinématique mot par mot, email avec underline animé au survol, liens sociaux — blob liquide violet qui suit le curseur sur le titre.',
+              en: 'Word-by-word cinematic headline, email with animated underline on hover, social links — purple liquid blob following the cursor over the title.'
+            }
           }
         ]
       },

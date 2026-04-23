@@ -197,6 +197,15 @@ onMounted(() => {
 
   for (let i = 0; i < content.work.projects.length; i++) {
     const proj = content.work.projects[i]
+
+    // dark backing fills the frame interior — sized to card so it never peeks out the front
+    const backing = new THREE.Mesh(
+      new THREE.PlaneGeometry(CARD_W * 0.98, CARD_H * 0.98),
+      new THREE.MeshBasicMaterial({ color: 0x07080f })
+    )
+    backing.position.set(i * SLAB_SPACING, 2.2, -0.02)
+    slabGroup.add(backing)
+
     const geo  = new THREE.PlaneGeometry(CARD_W, CARD_H)
     const mat  = new THREE.MeshBasicMaterial({ color: 0xffffff })   // white so the texture shows at its real colour
     const mesh = new THREE.Mesh(geo, mat)
@@ -627,6 +636,43 @@ onMounted(() => {
       })
 
       slabGroup.add(slab)
+    }
+  })
+
+  gltfLoader.load('/3d/galleryFrame.glb', (gltf) => {
+    const template = gltf.scene
+
+    const box = new THREE.Box3().setFromObject(template)
+    const size = new THREE.Vector3()
+    box.getSize(size)
+    const ctr = new THREE.Vector3()
+    box.getCenter(ctr)
+
+    // scale so the frame just wraps the card — tight fit, minimal border
+    const s = (CARD_H * 1.02) / size.y
+    template.scale.setScalar(s)
+    template.position.sub(ctr.multiplyScalar(s))
+
+    template.traverse(child => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        const mat = new THREE.MeshStandardMaterial({
+          color:             0x4a4552,
+          roughness:         0.82,
+          metalness:         0.18,
+          emissive:          new THREE.Color(0x110c26),
+          emissiveIntensity: 0.14,
+        })
+        mesh.material = Array.isArray(mesh.material)
+          ? mesh.material.map(() => mat.clone())
+          : mat
+      }
+    })
+
+    for (let i = 0; i < content.work.projects.length; i++) {
+      const frame = template.clone(true)
+      frame.position.set(i * SLAB_SPACING, 2.2, 0.08)
+      slabGroup.add(frame)
     }
   })
 
@@ -1157,7 +1203,7 @@ onMounted(() => {
           const isActive  = ci === activeIdx
           const isHovered = ci === galleryBridge.hoveredIndex
           const tgtZ = isActive ? 0.35 : 0.0
-          const tgtS = isActive ? 1.0 : isHovered ? 0.88 : 0.82
+          const tgtS = isActive ? 0.91 : isHovered ? 0.88 : 0.82
           plane.position.z += (tgtZ - plane.position.z) * 0.1
           plane.rotation.y += (0    - plane.rotation.y) * 0.1
           plane.scale.x    += (tgtS - plane.scale.x)    * 0.1

@@ -33,9 +33,8 @@ function trackHover() {
   vigRafId = requestAnimationFrame(trackHover)
   const idx = galleryBridge.hoveredIndex
 
-  // only show the vignette for cards next to the active one — labels on distant cards look weird
-  const inRange = Math.abs(idx - currentCardIdx) <= 1
-  if (idx < 0 || !inRange || !galleryBridge.getCardScreenPos) {
+  // only show the overlay for the active center card
+  if (idx < 0 || idx !== currentCardIdx || !galleryBridge.getCardScreenPos) {
     if (lastHovered !== -1) { hoveredProject.value = null; lastHovered = -1 }
     return
   }
@@ -43,7 +42,6 @@ function trackHover() {
   const pos = galleryBridge.getCardScreenPos(idx)
   if (!pos) { hoveredProject.value = null; lastHovered = -1; return }
 
-  // update every frame — the cards are moving so the overlay has to chase them
   vignetteStyle.value = {
     left:   `${pos.left}px`,
     top:    `${pos.top}px`,
@@ -58,7 +56,7 @@ function trackHover() {
 }
 
 const CARD_THRESHOLD    = 120
-const SECTION_THRESHOLD = 250
+const SECTION_THRESHOLD = 120
 let cardDelta      = 0
 let sectionDelta   = 0
 let cardLocked     = false
@@ -170,7 +168,6 @@ onUnmounted(() => {
       <div class="liquid-blob" :style="titleBlobStyle" />
     </div>
 
-    <!-- Vignette overlay — synced to hovered 3D card via screen projection -->
     <Transition name="vignette">
       <div
         v-if="hoveredProject"
@@ -256,7 +253,6 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-end;
   will-change: transform, opacity;
-  /* gradient from bottom, matching old card vignette */
   background: linear-gradient(
     to top,
     rgba(5, 5, 12, 0.97) 0%,
@@ -323,7 +319,6 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-/* ── vignette enter/leave transition ───────────────────────── */
 .vignette-enter-active,
 .vignette-leave-active {
   transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
