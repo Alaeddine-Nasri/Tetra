@@ -193,7 +193,7 @@ The Tickets app handles the full intervention lifecycle — creating, tracking, 
         image: '/projects/spinalcom.png',
         screenshots: [
           {
-            src: '/projects/spinalcom-1.jpg',
+            src: '/projects/spinalcom-1.png',
             title: { fr: 'Viewer 3D + table hiérarchique', en: '3D viewer + hierarchical table' },
             description: {
               fr: 'Sélection d\'un équipement dans la table : zoom automatique sur son réseau dans le modèle 3D, sprites colorés par statut, carte interactive avec valeurs capteurs en temps réel.',
@@ -201,7 +201,7 @@ The Tickets app handles the full intervention lifecycle — creating, tracking, 
             }
           },
           {
-            src: '/projects/spinalcom-2.jpg',
+            src: '/projects/spinalcom-2.png',
             title: { fr: 'Réseau 3D + connexions dynamiques', en: '3D network + dynamic connections' },
             description: {
               fr: 'Lignes de connexion parent-enfant tracées dans la scène 3D aux coordonnées XYZ réelles — CRUD des connexions directement dans le viewer, zoom dynamique par sélection.',
@@ -209,11 +209,19 @@ The Tickets app handles the full intervention lifecycle — creating, tracking, 
             }
           },
           {
-            src: '/projects/spinalcom-3.jpg',
+            src: '/projects/spinalcom-3.png',
             title: { fr: 'Tickets & connecteurs inter-apps', en: 'Tickets & inter-app connectors' },
             description: {
               fr: 'Tickets d\'intervention liés aux éléments BIM, visibles dans le viewer 3D — routing contextuel depuis Network vers Tickets avec transmission du contexte complet.',
               en: 'Intervention tickets linked to BIM elements, visible in the 3D viewer — contextual routing from Network to Tickets carrying the full entity context.'
+            }
+          },
+          {
+            src: '/projects/spinalcom-4.png',
+            title: { fr: 'Base de données graphe SpinalCore', en: 'SpinalCore graph database' },
+            description: {
+              fr: 'Visualisation du graphe de relations entre nœuds BIM, capteurs IoT et tickets — chaque entité du bâtiment est un nœud, les arêtes encodent le type de relation.',
+              en: 'Graph of relationships between BIM nodes, IoT sensors, and tickets — every building entity is a node, edges encode the relation type.'
             }
           }
         ]
